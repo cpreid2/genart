@@ -4,15 +4,15 @@
     <meta charset="UTF-8" />
     <title>Generative Art 1 - Non-Overlapping Convex Blobs</title>
     <style>
-      /* Prevent scrolling on the entire page */
-      html, body {
+      /* Force full viewport usage and prevent scrolling */
+      html, body, #root {
         margin: 0;
         padding: 0;
+        height: 100vh;
         overflow: hidden;
-        touch-action: none;
       }
 
-      /* Overall Dark Theme */
+      /* Basic Page Styling */
       body {
         background: #1a1a1a;
         color: #ddd;
@@ -37,38 +37,59 @@
       }
 
       h1 {
-        margin: 20px 0 10px 0;
+        margin: 10px 0;
       }
 
-      /* Toggle Button for Controls */
+      /* Container for the canvas (will be sized dynamically) */
+      #canvas-container {
+        position: relative;
+        margin: 0 auto;
+      }
+
+      /* Toggle Button for Controls (positioned inside the canvas container) */
       .toggle-button {
-        margin: 10px;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 20;
         padding: 6px 12px;
-        background: #34495e;
+        background: rgba(52, 73, 94, 0.8);
         color: #ddd;
         border: none;
         border-radius: 4px;
         cursor: pointer;
       }
       .toggle-button:hover {
-        background: #2c3e50;
+        background: rgba(44, 62, 80, 0.8);
       }
 
-      /* Collapsible Controls Panel */
-      .controls {
-        margin: 10px auto;
+      /* Controls Overlay (hovering on top of the canvas) */
+      .controls-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         padding: 10px;
-        background: #2c2c2c;
-        border: 1px solid #444;
-        border-radius: 4px;
+        box-sizing: border-box;
+      }
+
+      .controls-overlay .controls {
+        width: 90%;
+        max-width: 800px;
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
         gap: 10px;
-        width: 90%;
-        max-width: 800px;
       }
-      .controls label {
+
+      .controls-overlay .controls label {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -78,18 +99,18 @@
       }
 
       /* Default Slider Styling */
-      .controls input[type="range"] {
+      .controls-overlay .controls input[type="range"] {
         width: 150px;
         -webkit-appearance: none;
         background: transparent;
         touch-action: none;
       }
-      .controls input[type="range"]::-webkit-slider-runnable-track {
+      .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
         height: 4px;
         background: #555;
         border-radius: 2px;
       }
-      .controls input[type="range"]::-webkit-slider-thumb {
+      .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none;
         height: 16px;
         width: 16px;
@@ -97,12 +118,12 @@
         border-radius: 50%;
         margin-top: -6px;
       }
-      .controls input[type="range"]::-moz-range-track {
+      .controls-overlay .controls input[type="range"]::-moz-range-track {
         height: 4px;
         background: #555;
         border-radius: 2px;
       }
-      .controls input[type="range"]::-moz-range-thumb {
+      .controls-overlay .controls input[type="range"]::-moz-range-thumb {
         height: 16px;
         width: 16px;
         background: #1abc9c;
@@ -111,43 +132,36 @@
 
       /* Mobile-Friendly Slider Styles */
       @media (max-width: 600px) {
-        .controls input[type="range"] {
+        .controls-overlay .controls input[type="range"] {
           width: 100%;
           height: 40px;
         }
-        .controls input[type="range"]::-webkit-slider-runnable-track {
+        .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
           height: 10px;
           background: #555;
           border-radius: 4px;
         }
-        .controls input[type="range"]::-webkit-slider-thumb {
+        .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
           height: 40px;
           width: 40px;
           background: #1abc9c;
           border-radius: 50%;
           margin-top: -15px;
         }
-        .controls input[type="range"]::-moz-range-track {
+        .controls-overlay .controls input[type="range"]::-moz-range-track {
           height: 10px;
           background: #555;
           border-radius: 4px;
         }
-        .controls input[type="range"]::-moz-range-thumb {
+        .controls-overlay .controls input[type="range"]::-moz-range-thumb {
           height: 40px;
           width: 40px;
           background: #1abc9c;
           border-radius: 50%;
         }
-        .controls label {
+        .controls-overlay .controls label {
           font-size: 1.5em;
         }
-      }
-
-      /* Container for our React app (canvas & controls) */
-      #root {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
       }
 
       /* p5 canvas container */
@@ -158,32 +172,27 @@
     </style>
   </head>
   <body>
-    <!-- Header with navigation back to landing page -->
-    <header>
-      <a href="index.html">Back to Home</a>
-    </header>
-
-    <!-- The React App mounts here -->
+    <!-- The React App mounts inside #root -->
     <div id="root"></div>
 
-    <!-- Load React and ReactDOM -->
+    <!-- Load React, ReactDOM, Babel, and p5.js -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-    <!-- Load Babel for JSX support -->
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    <!-- Load p5.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
 
     <!-- Application Code -->
     <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
       /**********************
        * P5Wrapper Component
        **********************/
       const P5Wrapper = ({ sketch }) => {
-        const wrapperRef = React.useRef(null);
-        React.useEffect(() => {
+        const wrapperRef = useRef(null);
+        useEffect(() => {
           const p5Instance = new p5(sketch, wrapperRef.current);
-          // Prevent touchmove events on the canvas from scrolling the page.
+          // Prevent touchmove events on the canvas from scrolling.
           p5Instance.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
           }, { passive: false });
@@ -195,29 +204,26 @@
       /**********************
        * makeSketch Function
        **********************/
-      // The sketch creates a square canvas (side = min(window.innerWidth, window.innerHeight))
+      // The sketch creates a square canvas of the given size.
       function makeSketch(numBlobs, verticesCount, perimeterStiffness, canvasSize, maxPerimeter) {
         return function(p) {
           let canvasWidth = canvasSize;
           let canvasHeight = canvasSize;
-          let particles = []; // For particle-level collision checking.
+          let particles = [];
           let grid;
           let blobs = [];
-          const interBlobRepulsionFactor = 2.0; // Extra repulsion for inter-blob collisions.
+          const interBlobRepulsionFactor = 2.0;
 
-          /**********************
-           * Blob Class
-           **********************/
           class Blob {
             constructor(startPos, radius, verticesCount, blobColor, perimeterStiffness) {
               this.startPos = startPos;
               this.radius = radius;
-              this.restRadius = radius; // Original (rest) radius.
+              this.restRadius = radius;
               this.verticesCount = verticesCount;
               this.outerParticles = [];
               this.innerParticles = [];
               this.springs = [];
-              this.particles = []; // Combined list.
+              this.particles = [];
               this.color = blobColor || p.color(200, 200, 200);
               this.perimeterStiffness = perimeterStiffness;
             }
@@ -308,9 +314,6 @@
             }
           }
 
-          /**********************
-           * Particle Class
-           **********************/
           class Particle {
             constructor(pos) {
               this.pos = pos;
@@ -399,7 +402,7 @@
               this.velocity.add(f);
             }
             limitVelocities() {
-              let speed = p.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+              let speed = p.sqrt(this.velocity.x ** 2 + this.velocity.y ** 2);
               if (speed > this.maxSpeed) {
                 this.velocity.mult(this.maxSpeed / speed);
               }
@@ -411,9 +414,6 @@
             }
           }
 
-          /**********************
-           * Grid Class
-           **********************/
           class Grid {
             constructor(width, height, cellSize) {
               this.cellSize = cellSize;
@@ -461,9 +461,6 @@
             }
           }
 
-          /**********************
-           * Spring Class
-           **********************/
           class Spring {
             constructor(particleA, particleB, restLength, stiffness) {
               this.particleA = particleA;
@@ -499,9 +496,6 @@
             }
           }
 
-          /**********************
-           * Global Blob Separation Functions
-           **********************/
           function separateBlobs() {
             for (let i = 0; i < blobs.length; i++) {
               let center1 = blobs[i].center();
@@ -584,7 +578,6 @@
             }
           };
 
-          // The internal p.windowResized is still here as a fallback.
           p.windowResized = () => {
             let side = p.min(p.windowWidth, p.windowHeight);
             p.resizeCanvas(side, side);
@@ -599,100 +592,118 @@
        * React App Component
        **********************/
       const App = () => {
-        // Use state for canvasSize so that when the window is resized,
-        // we update the state and force the sketch to restart.
-        const [canvasSize, setCanvasSize] = React.useState(
-          Math.min(window.innerWidth, window.innerHeight)
-        );
-        const [numBlobs, setNumBlobs] = React.useState(3);
-        const [verticesCount, setVerticesCount] = React.useState(40);
-        const [perimeterStiffness, setPerimeterStiffness] = React.useState(0.25);
-        const [maxPerimeter, setMaxPerimeter] = React.useState(800);
-        const [showControls, setShowControls] = React.useState(false);
+        const headerRef = useRef(null);
+        // We no longer need to measure controls because they overlay the canvas.
+        const [canvasSize, setCanvasSize] = useState(0);
+        const [numBlobs, setNumBlobs] = useState(3);
+        const [verticesCount, setVerticesCount] = useState(40);
+        const [perimeterStiffness, setPerimeterStiffness] = useState(0.25);
+        const [maxPerimeter, setMaxPerimeter] = useState(800);
+        const [showControls, setShowControls] = useState(false);
+        const bottomMargin = 20; // Additional spacing at the bottom
 
-        // Listen for window resize events and update canvasSize after resizing is done.
-        React.useEffect(() => {
-          let resizeTimeout;
+        // Compute the available canvas size: availableHeight = window.innerHeight minus header height and bottom margin.
+        const computeCanvasSize = () => {
+          const headerHeight = headerRef.current ? headerRef.current.offsetHeight : 0;
+          const availableHeight = window.innerHeight - headerHeight - bottomMargin;
+          return Math.min(window.innerWidth, availableHeight);
+        };
+
+        useEffect(() => {
           const handleResize = () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-              setCanvasSize(Math.min(window.innerWidth, window.innerHeight));
-            }, 200);
+            setCanvasSize(computeCanvasSize());
           };
+          handleResize(); // Initial computation
           window.addEventListener('resize', handleResize);
           return () => window.removeEventListener('resize', handleResize);
         }, []);
 
         return (
           <div>
-            <h1>Blobby</h1>
-            <button className="toggle-button" onClick={() => setShowControls(!showControls)}>
-              {showControls ? 'Hide Controls' : 'Show Controls'}
-            </button>
-            {showControls && (
-              <div className="controls">
-                <label>
-                  Number of Blobs: {numBlobs}
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={numBlobs}
-                    onChange={(e) => setNumBlobs(parseInt(e.target.value))}
-                    onTouchMove={(e) => e.preventDefault()}
-                  />
-                </label>
-                <label>
-                  Vertices per Blob: {verticesCount}
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={verticesCount}
-                    onChange={(e) => setVerticesCount(parseInt(e.target.value))}
-                    onTouchMove={(e) => e.preventDefault()}
-                  />
-                </label>
-                <label>
-                  Perimeter Spring Rigidity: {perimeterStiffness}
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="1.0"
-                    step="0.05"
-                    value={perimeterStiffness}
-                    onChange={(e) => setPerimeterStiffness(parseFloat(e.target.value))}
-                    onTouchMove={(e) => e.preventDefault()}
-                  />
-                </label>
-                <label>
-                  Blob Outer Perimeter: {maxPerimeter}
-                  <input
-                    type="range"
-                    min="350"
-                    max="1500"
-                    step="50"
-                    value={maxPerimeter}
-                    onChange={(e) => setMaxPerimeter(parseFloat(e.target.value))}
-                    onTouchMove={(e) => e.preventDefault()}
-                  />
-                </label>
+            <header ref={headerRef}>
+              <a href="index.html">Back to Home</a>
+              <h1>p5.js Non-Overlapping Convex Blobs</h1>
+            </header>
+            {/* Canvas Container */}
+            {canvasSize > 0 && (
+              <div
+                id="canvas-container"
+                style={{
+                  position: 'relative',
+                  width: canvasSize,
+                  height: canvasSize,
+                  marginTop: 10
+                }}
+              >
+                <P5Wrapper
+                  key={`sketch-${numBlobs}-${verticesCount}-${perimeterStiffness}-${maxPerimeter}-${canvasSize}`}
+                  sketch={makeSketch(numBlobs, verticesCount, perimeterStiffness, canvasSize, maxPerimeter)}
+                />
+                <button
+                  className="toggle-button"
+                  onClick={() => setShowControls(!showControls)}
+                >
+                  {showControls ? 'Hide Controls' : 'Show Controls'}
+                </button>
+                {showControls && (
+                  <div className="controls-overlay">
+                    <div className="controls">
+                      <label>
+                        Number of Blobs: {numBlobs}
+                        <input
+                          type="range"
+                          min="1"
+                          max="20"
+                          value={numBlobs}
+                          onChange={(e) => setNumBlobs(parseInt(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                      <label>
+                        Vertices per Blob: {verticesCount}
+                        <input
+                          type="range"
+                          min="10"
+                          max="100"
+                          value={verticesCount}
+                          onChange={(e) => setVerticesCount(parseInt(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                      <label>
+                        Perimeter Spring Rigidity: {perimeterStiffness}
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1.0"
+                          step="0.05"
+                          value={perimeterStiffness}
+                          onChange={(e) => setPerimeterStiffness(parseFloat(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                      <label>
+                        Blob Outer Perimeter: {maxPerimeter}
+                        <input
+                          type="range"
+                          min="350"
+                          max="1500"
+                          step="50"
+                          value={maxPerimeter}
+                          onChange={(e) => setMaxPerimeter(parseFloat(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            <P5Wrapper
-              key={`sketch-${numBlobs}-${verticesCount}-${perimeterStiffness}-${maxPerimeter}-${canvasSize}`}
-              sketch={makeSketch(numBlobs, verticesCount, perimeterStiffness, canvasSize, maxPerimeter)}
-            />
           </div>
         );
       };
 
       ReactDOM.render(<App />, document.getElementById("root"));
-
-      // Prevent any touchmove events on the document from scrolling the page.
-      document.addEventListener('touchmove', function(e) {
-        e.preventDefault();
-      }, { passive: false });
     </script>
   </body>
 </html>
