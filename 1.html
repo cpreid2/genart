@@ -130,37 +130,37 @@
         border-radius: 50%;
       }
 
-      /* Mobile-Friendly Slider Styles */
+      /* Mobile-Friendly Slider Styles - Further Enlarged for iPhone */
       @media (max-width: 600px) {
         .controls-overlay .controls input[type="range"] {
           width: 100%;
-          height: 40px;
+          height: 50px; /* Increased overall slider height */
         }
         .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
-          height: 10px;
+          height: 14px; /* Thicker track */
           background: #555;
-          border-radius: 4px;
+          border-radius: 6px;
         }
         .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
-          height: 40px;
-          width: 40px;
+          height: 50px;
+          width: 50px;
           background: #1abc9c;
           border-radius: 50%;
-          margin-top: -15px;
+          margin-top: -18px; /* Adjust thumb vertical alignment */
         }
         .controls-overlay .controls input[type="range"]::-moz-range-track {
-          height: 10px;
+          height: 14px;
           background: #555;
-          border-radius: 4px;
+          border-radius: 6px;
         }
         .controls-overlay .controls input[type="range"]::-moz-range-thumb {
-          height: 40px;
-          width: 40px;
+          height: 50px;
+          width: 50px;
           background: #1abc9c;
           border-radius: 50%;
         }
         .controls-overlay .controls label {
-          font-size: 1.5em;
+          font-size: 2em;  /* Increased label font size */
         }
       }
 
@@ -168,6 +168,14 @@
       .p5-canvas-container {
         border: 1px solid #222;
         touch-action: none;
+      }
+
+      /* Ensure the root container fits within the viewport */
+      #root {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
       }
     </style>
   </head>
@@ -192,7 +200,7 @@
         const wrapperRef = useRef(null);
         useEffect(() => {
           const p5Instance = new p5(sketch, wrapperRef.current);
-          // Prevent touchmove events on the canvas from scrolling.
+          // Prevent touchmove events on the canvas from scrolling the page.
           p5Instance.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
           }, { passive: false });
@@ -204,7 +212,7 @@
       /**********************
        * makeSketch Function
        **********************/
-      // The sketch creates a square canvas of the given size.
+      // Creates a square canvas of the given size.
       function makeSketch(numBlobs, verticesCount, perimeterStiffness, canvasSize, maxPerimeter) {
         return function(p) {
           let canvasWidth = canvasSize;
@@ -593,16 +601,15 @@
        **********************/
       const App = () => {
         const headerRef = useRef(null);
-        // We no longer need to measure controls because they overlay the canvas.
         const [canvasSize, setCanvasSize] = useState(0);
         const [numBlobs, setNumBlobs] = useState(3);
         const [verticesCount, setVerticesCount] = useState(40);
         const [perimeterStiffness, setPerimeterStiffness] = useState(0.25);
         const [maxPerimeter, setMaxPerimeter] = useState(800);
         const [showControls, setShowControls] = useState(false);
-        const bottomMargin = 20; // Additional spacing at the bottom
+        const bottomMargin = 20; // Extra spacing at bottom
 
-        // Compute the available canvas size: availableHeight = window.innerHeight minus header height and bottom margin.
+        // Compute available canvas size: availableHeight = window.innerHeight - header height - bottomMargin
         const computeCanvasSize = () => {
           const headerHeight = headerRef.current ? headerRef.current.offsetHeight : 0;
           const availableHeight = window.innerHeight - headerHeight - bottomMargin;
@@ -613,7 +620,7 @@
           const handleResize = () => {
             setCanvasSize(computeCanvasSize());
           };
-          handleResize(); // Initial computation
+          handleResize();
           window.addEventListener('resize', handleResize);
           return () => window.removeEventListener('resize', handleResize);
         }, []);
