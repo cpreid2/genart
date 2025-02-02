@@ -102,6 +102,16 @@
         border-radius: 50%;
       }
 
+      /* Mobile Friendly Controls */
+      @media (max-width: 600px) {
+        .controls input[type="range"] {
+          width: 100%;
+        }
+        .controls label {
+          font-size: 1.1em;
+        }
+      }
+
       /* Container for our React app (canvas & controls) */
       #root {
         display: flex;
@@ -112,6 +122,8 @@
       /* p5 canvas container */
       .p5-canvas-container {
         border: 1px solid #222;
+        /* Prevent touch scrolling on the canvas container */
+        touch-action: none;
       }
     </style>
   </head>
@@ -141,6 +153,10 @@
         const wrapperRef = React.useRef(null);
         React.useEffect(() => {
           const p5Instance = new p5(sketch, wrapperRef.current);
+          // Prevent touchmove events on the canvas from scrolling the page.
+          p5Instance.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+          }, { passive: false });
           return () => { p5Instance.remove(); };
         }, [sketch]);
         return <div className="p5-canvas-container" ref={wrapperRef} />;
@@ -578,7 +594,7 @@
 
         return (
           <div>
-            <h1>Blobby</h1>
+            <h1>p5.js Non-Overlapping Convex Blobs</h1>
             <button className="toggle-button" onClick={() => setShowControls(!showControls)}>
               {showControls ? 'Hide Controls' : 'Show Controls'}
             </button>
