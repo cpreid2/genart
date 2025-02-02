@@ -1,2 +1,2 @@
 # genart
-genart
+:)
