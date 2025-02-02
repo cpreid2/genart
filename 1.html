@@ -4,17 +4,22 @@
     <meta charset="UTF-8" />
     <title>Generative Art 1 - Non-Overlapping Convex Blobs</title>
     <style>
-      /* Overall Dark Theme */
-      body {
+      /* Prevent scrolling on the entire page */
+      html, body {
         margin: 0;
         padding: 0;
+        overflow: hidden;
+        touch-action: none; /* Prevent default touch actions */
+      }
+
+      /* Overall Dark Theme */
+      body {
         background: #1a1a1a;
         color: #ddd;
         font-family: 'Courier New', Courier, monospace;
         display: flex;
         flex-direction: column;
         align-items: center;
-        overflow-x: hidden;
       }
 
       header {
@@ -590,7 +595,7 @@
             }
           };
 
-          // Ensure the canvas stays square (side = min(windowWidth, window.innerHeight)).
+          // Ensure the canvas stays square (side = min(windowWidth, windowHeight)).
           p.windowResized = () => {
             let side = p.min(p.windowWidth, p.windowHeight);
             p.resizeCanvas(side, side);
@@ -620,7 +625,7 @@
 
         return (
           <div>
-            <h1>p5.js Non-Overlapping Convex Blobs</h1>
+            <h1>Blobby</h1>
             <button className="toggle-button" onClick={() => setShowControls(!showControls)}>
               {showControls ? 'Hide Controls' : 'Show Controls'}
             </button>
@@ -683,6 +688,11 @@
       };
 
       ReactDOM.render(<App />, document.getElementById("root"));
+
+      // Prevent any touchmove events on the document from scrolling the page.
+      document.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+      }, { passive: false });
     </script>
   </body>
 </html>
