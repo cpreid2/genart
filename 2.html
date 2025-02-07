@@ -1,24 +1,438 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Generative Art 2</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Load the p5.js library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.5.0/p5.min.js"></script>
-  <!-- Load your custom p5 sketch -->
-  <script src="2.js"></script>
-</head>
-<body>
-  <header>
-    <h1>2</h1>
-    <nav>
-      <a href="index.html">Back to Home</a>
-    </nav>
-  </header>
-  <main>
-    <div id="p5-container"></div>
-  </main>
-</body>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Wandering Line</title>
+    <style>
+      /* Global: Full viewport and no scrolling */
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      /* Basic Page Styling */
+      body {
+        background: #1a1a1a;
+        color: #ddd;
+        font-family: 'Courier New', Courier, monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      header {
+        width: 100%;
+        background: linear-gradient(45deg, #2c3e50, #34495e);
+        padding: 10px 20px;
+        box-shadow: 0 5px 0 #000;
+        text-align: center;
+      }
+      header a {
+        color: #ddd;
+        text-decoration: none;
+        font-size: 1em;
+      }
+      h1 {
+        margin: 10px 0;
+      }
+      /* Canvas Container (dynamically sized) */
+      #canvas-container {
+        position: relative;
+        margin: 10px auto 0 auto;
+      }
+      /* Toggle Button for Controls (inside canvas container) */
+      .toggle-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 20;
+        padding: 6px 12px;
+        background: rgba(52,73,94,0.8);
+        color: #ddd;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .toggle-button:hover {
+        background: rgba(44,62,80,0.8);
+      }
+      /* Controls Overlay (appears over the canvas) */
+      .controls-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        box-sizing: border-box;
+        touch-action: none;
+      }
+      .controls-overlay .controls {
+        width: 90%;
+        max-width: 800px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      .controls-overlay .controls label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 1em;
+        color: #ddd;
+        margin: 5px;
+      }
+      /* Default Slider Styling */
+      .controls-overlay .controls input[type="range"] {
+        width: 150px;
+        -webkit-appearance: none;
+        background: transparent;
+        touch-action: none;
+      }
+      .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        background: #555;
+        border-radius: 2px;
+      }
+      .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        background: #1abc9c;
+        border-radius: 50%;
+        margin-top: -6px;
+      }
+      .controls-overlay .controls input[type="range"]::-moz-range-track {
+        height: 4px;
+        background: #555;
+        border-radius: 2px;
+      }
+      .controls-overlay .controls input[type="range"]::-moz-range-thumb {
+        height: 16px;
+        width: 16px;
+        background: #1abc9c;
+        border-radius: 50%;
+      }
+      /* Mobile-Friendly Slider Styles – enlarged for easier touch */
+      @media (max-width: 600px) {
+        .controls-overlay .controls input[type="range"] {
+          width: 100%;
+          height: 50px;
+        }
+        .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
+          height: 14px;
+          background: #555;
+          border-radius: 6px;
+        }
+        .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
+          height: 50px;
+          width: 50px;
+          background: #1abc9c;
+          border-radius: 50%;
+          margin-top: -18px;
+        }
+        .controls-overlay .controls input[type="range"]::-moz-range-track {
+          height: 14px;
+          background: #555;
+          border-radius: 6px;
+        }
+        .controls-overlay .controls input[type="range"]::-moz-range-thumb {
+          height: 50px;
+          width: 50px;
+          background: #1abc9c;
+          border-radius: 50%;
+        }
+        .controls-overlay .controls label {
+          font-size: 2em;
+        }
+      }
+      /* p5 canvas container */
+      .p5-canvas-container {
+        border: 1px solid #222;
+        touch-action: none;
+      }
+      /* Root container occupies the full viewport */
+      #root {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Load Libraries -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+
+    <!-- Application Code -->
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      /**********************
+       * P5Wrapper Component
+       **********************/
+      const P5Wrapper = ({ sketch }) => {
+        const wrapperRef = useRef(null);
+        useEffect(() => {
+          const p5Instance = new p5(sketch, wrapperRef.current);
+          // Prevent touch scrolling on the canvas.
+          p5Instance.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+          return () => { p5Instance.remove(); };
+        }, [sketch]);
+        return <div className="p5-canvas-container" ref={wrapperRef} />;
+      };
+
+      /**********************
+       * Wandering Line Sketch
+       **********************/
+      // This sketch creates a single walker that takes steps in a slightly randomized direction.
+      // Before each new step the candidate segment is tested for collision against all previously drawn segments.
+      // If no valid direction is found (or the segment would leave the canvas), the walker “stops” and a new one is spawned.
+      function makeWanderingLineSketch(canvasSize, stepLength, maxTurnAngleDegrees) {
+        // Convert the maximum turn angle (in degrees) to radians.
+        const maxTurnAngle = maxTurnAngleDegrees * Math.PI / 180;
+        return function(p) {
+          let segments = [];  // All drawn line segments
+          let currentWalker = null;  // The current wandering line (walker)
+          const maxAttempts = 10;  // How many deviations to try before giving up on this walker
+
+          p.setup = () => {
+            p.createCanvas(canvasSize, canvasSize);
+            p.background(51);
+            spawnNewWalker();
+          };
+
+          // Spawns a new walker at a random point (within a margin) with a random initial direction.
+          function spawnNewWalker() {
+            const margin = 10;
+            let x = p.random(margin, p.width - margin);
+            let y = p.random(margin, p.height - margin);
+            let pos = p.createVector(x, y);
+            let dir = p5.Vector.random2D();
+            currentWalker = { pos, dir, lastSegment: null };
+          }
+
+          // Helper: Checks whether two segments (p1->p2 and p3->p4) intersect.
+          // This version returns true if they intersect (including at endpoints).
+          function segmentsIntersectStrict(p1, p2, p3, p4) {
+            function orientation(a, b, c) {
+              const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+              if (p.abs(val) < 0.0001) return 0; // collinear
+              return (val > 0) ? 1 : 2; // 1 = clockwise, 2 = counterclockwise
+            }
+            function onSegment(a, b, c) {
+              return b.x <= p.max(a.x, c.x) && b.x >= p.min(a.x, c.x) &&
+                     b.y <= p.max(a.y, c.y) && b.y >= p.min(a.y, c.y);
+            }
+            let o1 = orientation(p1, p2, p3);
+            let o2 = orientation(p1, p2, p4);
+            let o3 = orientation(p3, p4, p1);
+            let o4 = orientation(p3, p4, p2);
+
+            if (o1 !== o2 && o3 !== o4) return true;
+
+            if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+            if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+            if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+            if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+
+            return false;
+          }
+
+          // Helper: Checks whether two p5.Vector points are (nearly) equal.
+          function pointsEqual(v1, v2) {
+            return (p.abs(v1.x - v2.x) < 0.001 && p.abs(v1.y - v2.y) < 0.001);
+          }
+
+          // Helper: Checks whether two segments (objects with start and end) are equal.
+          function segmentsEqual(seg1, seg2) {
+            return pointsEqual(seg1.start, seg2.start) && pointsEqual(seg1.end, seg2.end);
+          }
+
+          // Checks if the candidate segment would collide with any already drawn segment.
+          // We allow the candidate to share its starting point with the last segment of the current walker.
+          function checkCollision(candidateSegment) {
+            // Reject if the candidate goes outside the canvas.
+            if (
+              candidateSegment.end.x < 0 ||
+              candidateSegment.end.x > p.width ||
+              candidateSegment.end.y < 0 ||
+              candidateSegment.end.y > p.height
+            ) {
+              return true;
+            }
+            for (let seg of segments) {
+              // Skip the current walker's last segment (which shares the candidate start).
+              if (currentWalker.lastSegment && segmentsEqual(seg, currentWalker.lastSegment)) continue;
+              if (segmentsIntersectStrict(candidateSegment.start, candidateSegment.end, seg.start, seg.end)) {
+                return true;
+              }
+            }
+            return false;
+          }
+
+          p.draw = () => {
+            // Redraw background and all segments so that lines persist.
+            p.background(51);
+            p.stroke(255);
+            p.strokeWeight(2);
+            for (let seg of segments) {
+              p.line(seg.start.x, seg.start.y, seg.end.x, seg.end.y);
+            }
+            // Draw the current walker's position as a red circle.
+            if (currentWalker) {
+              p.fill(255, 0, 0);
+              p.noStroke();
+              p.ellipse(currentWalker.pos.x, currentWalker.pos.y, 5, 5);
+            }
+
+            // If we have a walker, try to extend it.
+            if (currentWalker) {
+              let moved = false;
+              let attempts = 0;
+              while (!moved && attempts < maxAttempts) {
+                // Create a candidate direction by perturbing the current direction.
+                let angleOffset = p.random(-maxTurnAngle, maxTurnAngle);
+                let candidateDir = currentWalker.dir.copy().rotate(angleOffset);
+                candidateDir.normalize();
+                let candidatePos = p5.Vector.add(currentWalker.pos, p5.Vector.mult(candidateDir, stepLength));
+                let candidateSegment = {
+                  start: currentWalker.pos.copy(),
+                  end: candidatePos.copy()
+                };
+                if (!checkCollision(candidateSegment)) {
+                  // The step is valid. Save the segment, update the walker, and record this as the last segment.
+                  segments.push(candidateSegment);
+                  currentWalker.pos = candidatePos;
+                  currentWalker.dir = candidateDir;
+                  currentWalker.lastSegment = candidateSegment;
+                  moved = true;
+                } else {
+                  attempts++;
+                }
+              }
+              // If we couldn’t move after several attempts, consider the walker stuck.
+              if (!moved) {
+                currentWalker = null;
+              }
+            } else {
+              // Start a new walker.
+              spawnNewWalker();
+            }
+          };
+
+          p.windowResized = () => {
+            let side = p.min(p.windowWidth, p.windowHeight);
+            p.resizeCanvas(side, side);
+          };
+        };
+      }
+
+      /**********************
+       * React App Component
+       **********************/
+      const App = () => {
+        const headerRef = useRef(null);
+        const [canvasSize, setCanvasSize] = useState(0);
+        // Two parameters: stepLength and maxTurnAngle (in degrees).
+        const [stepLength, setStepLength] = useState(5);
+        const [maxTurnAngle, setMaxTurnAngle] = useState(45);
+        const [showControls, setShowControls] = useState(false);
+        const bottomMargin = 20; // Bottom spacing
+
+        const computeCanvasSize = () => {
+          const headerHeight = headerRef.current ? headerRef.current.offsetHeight : 0;
+          const availableHeight = window.innerHeight - headerHeight - bottomMargin;
+          return Math.min(window.innerWidth, availableHeight);
+        };
+
+        useEffect(() => {
+          const handleResize = () => {
+            setCanvasSize(computeCanvasSize());
+          };
+          handleResize();
+          window.addEventListener('resize', handleResize);
+          return () => window.removeEventListener('resize', handleResize);
+        }, []);
+
+        return (
+          <div>
+            <header ref={headerRef}>
+              <a href="index.html">Back to Home</a>
+              <h1>Wandering Line</h1>
+            </header>
+            {canvasSize > 0 && (
+              <div
+                id="canvas-container"
+                style={{
+                  position: "relative",
+                  width: canvasSize,
+                  height: canvasSize,
+                  marginTop: 10
+                }}
+              >
+                <P5Wrapper
+                  key={`sketch-${canvasSize}-${stepLength}-${maxTurnAngle}`}
+                  sketch={makeWanderingLineSketch(canvasSize, stepLength, maxTurnAngle)}
+                />
+                <button
+                  className="toggle-button"
+                  onClick={() => setShowControls(!showControls)}
+                >
+                  {showControls ? "Hide Controls" : "Show Controls"}
+                </button>
+                {showControls && (
+                  <div
+                    className="controls-overlay"
+                    onTouchMove={(e) => e.preventDefault()}
+                  >
+                    <div className="controls">
+                      <label>
+                        Step Length: {stepLength}
+                        <input
+                          type="range"
+                          min="1"
+                          max="20"
+                          step="1"
+                          value={stepLength}
+                          onChange={(e) => setStepLength(parseInt(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                      <label>
+                        Max Turn Angle (deg): {maxTurnAngle}
+                        <input
+                          type="range"
+                          min="0"
+                          max="90"
+                          step="1"
+                          value={maxTurnAngle}
+                          onChange={(e) => setMaxTurnAngle(parseInt(e.target.value))}
+                          onTouchMove={(e) => e.preventDefault()}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
 </html>
