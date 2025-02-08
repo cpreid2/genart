@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Translucent Bouncing Marbles (with OrbitControls & Controls)</title>
+    <style>
+      /* Use the full viewport and prevent scrolling */
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      /* Basic page styling */
+      body {
+        background: #1a1a1a;
+        color: #ddd;
+        font-family: 'Courier New', monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      /* Header at the top, same maximum width as the canvas container */
+      header {
+        width: 100%;
+        max-width: 1200px; /* example max width */
+        background: linear-gradient(45deg, #2c3e50, #34495e);
+        padding: 10px 20px;
+        box-shadow: 0 5px 0 #000;
+        text-align: center;
+      }
+      header a {
+        color: #ddd;
+        text-decoration: none;
+        font-size: 1em;
+      }
+      h1 {
+        margin: 0.5em 0 0.2em 0;
+      }
+      p {
+        margin: 0 0 0.5em 0;
+      }
+      /* Root container: vertically stacked, center-aligned */
+      #root {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+      }
+      /* Canvas Container: also restricted by max-width so it lines up with the header */
+      #canvas-container {
+        position: relative;
+        width: 100%;
+        max-width: 1200px; /* same max width as header */
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .three-canvas-container {
+        border: 1px solid #222;
+        touch-action: none;
+      }
+
+      /* Toggle Button for Controls (inside canvas container) */
+      .toggle-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 20;
+        padding: 6px 12px;
+        background: rgba(52,73,94,0.8);
+        color: #ddd;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .toggle-button:hover {
+        background: rgba(44,62,80,0.8);
+      }
+      /* Controls Overlay (appears over the canvas) */
+      .controls-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        box-sizing: border-box;
+        touch-action: none;
+      }
+      .controls-overlay .controls {
+        width: 90%;
+        max-width: 800px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      .controls-overlay .controls label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 1em;
+        color: #ddd;
+        margin: 5px;
+      }
+      .controls-overlay .controls input[type="range"] {
+        width: 150px;
+        -webkit-appearance: none;
+        background: transparent;
+        touch-action: none;
+      }
+      .controls-overlay .controls input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        background: #555;
+        border-radius: 2px;
+      }
+      .controls-overlay .controls input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        background: #1abc9c;
+        border-radius: 50%;
+        margin-top: -6px;
+      }
+      .controls-overlay .controls input[type="range"]::-moz-range-track {
+        height: 4px;
+        background: #555;
+        border-radius: 2px;
+      }
+      .controls-overlay .controls input[type="range"]::-moz-range-thumb {
+        height: 16px;
+        width: 16px;
+        background: #1abc9c;
+        border-radius: 50%;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Load React, ReactDOM, Babel, and Three.js -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Main Code -->
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      /***************************************************************
+       * Create a random "solid color" cubemap environment map
+       ***************************************************************/
+      // We'll create 6 tiny 1x1 textures, each a different random color,
+      // forming a CubeTexture. The marbles can refract/reflect it.
+      function createRandomColorCubeMap() {
+        function makeColorTexture(color) {
+          const data = new Uint8Array(3);
+          data[0] = Math.floor(color.r * 255);
+          data[1] = Math.floor(color.g * 255);
+          data[2] = Math.floor(color.b * 255);
+          const tex = new THREE.DataTexture(data, 1, 1, THREE.RGBFormat);
+          tex.needsUpdate = true;
+          return tex;
+        }
+        const faces = [];
+        for (let i = 0; i < 6; i++) {
+          const col = new THREE.Color(Math.random(), Math.random(), Math.random());
+          faces.push(makeColorTexture(col));
+        }
+        const envMap = new THREE.CubeTexture(faces);
+        envMap.needsUpdate = true;
+        return envMap;
+      }
+
+      /***************************************************************
+       * Bouncing Marbles inside an invisible boundary
+       * Each sphere is translucent with a MeshPhysicalMaterial
+       ***************************************************************/
+      const ThreeCanvas = ({ canvasSize, sphereCount, sphereRadius, roughness, metalness, transmission, ior, thickness, envMapIntensity }) => {
+        const containerRef = useRef(null);
+        const sceneRef = useRef(null);
+        const marblesRef = useRef([]);
+        const boundaryRadius = 3.0; // invisible boundary radius
+
+        useEffect(() => {
+          // Create Scene, Camera, Renderer
+          const scene = new THREE.Scene();
+          sceneRef.current = scene;
+
+          const camera = new THREE.PerspectiveCamera(75, canvasSize / canvasSize, 0.1, 1000);
+          camera.position.z = 5;
+
+          const renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer.setSize(canvasSize, canvasSize);
+          containerRef.current.appendChild(renderer.domElement);
+
+          const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+          // Environment map
+          const envMap = createRandomColorCubeMap();
+
+          // Lights
+          const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+          scene.add(ambientLight);
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+          directionalLight.position.set(5, 5, 5);
+          scene.add(directionalLight);
+
+          // Marbles array
+          const marbles = [];
+          const marbleGeometry = new THREE.SphereGeometry(sphereRadius, 32, 32);
+
+          // Helper: random point in sphere
+          function randomPointInSphere(maxR) {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = 2 * Math.PI * u;
+            const phi = Math.acos(2 * v - 1);
+            const r = Math.cbrt(Math.random()) * maxR;
+            const sinPhi = Math.sin(phi);
+            return new THREE.Vector3(
+              r * sinPhi * Math.cos(theta),
+              r * sinPhi * Math.sin(theta),
+              r * Math.cos(phi)
+            );
+          }
+
+          for (let i = 0; i < sphereCount; i++) {
+            const pos = randomPointInSphere(boundaryRadius - sphereRadius);
+            const vel = new THREE.Vector3(
+              (Math.random() - 0.5) * 0.04,
+              (Math.random() - 0.5) * 0.04,
+              (Math.random() - 0.5) * 0.04
+            );
+            // color
+            const baseColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+            // material
+            const material = new THREE.MeshPhysicalMaterial({
+              color: baseColor,
+              roughness: roughness,
+              metalness: metalness,
+              transmission: transmission,
+              ior: ior,
+              thickness: thickness,
+              envMap: envMap,
+              envMapIntensity: envMapIntensity,
+              reflectivity: 0.5,
+              clearcoat: 0.2,
+              clearcoatRoughness: 0.05
+            });
+
+            const mesh = new THREE.Mesh(marbleGeometry, material);
+            mesh.position.copy(pos);
+            scene.add(mesh);
+            marbles.push({ mesh, velocity: vel });
+          }
+          marblesRef.current = marbles;
+
+          // Reflection helper
+          function reflectVelocity(velocity, normal) {
+            const dot = velocity.dot(normal);
+            velocity.sub(normal.multiplyScalar(2 * dot));
+          }
+
+          // Sphere-sphere collision for equal masses
+          function resolveCollision(a, b) {
+            const posA = a.mesh.position;
+            const posB = b.mesh.position;
+            const distVec = new THREE.Vector3().subVectors(posB, posA);
+            let dist = distVec.length();
+
+            const rSum = sphereRadius * 2.0;
+            if (dist === 0) {
+              distVec.set(1, 0, 0);
+              dist = 1;
+            } else {
+              distVec.normalize();
+            }
+            const overlap = rSum - dist;
+            if (overlap > 0) {
+              // separate
+              posA.add(distVec.clone().multiplyScalar(-overlap * 0.5));
+              posB.add(distVec.clone().multiplyScalar(overlap * 0.5));
+
+              // velocity exchange
+              const relVel = new THREE.Vector3().subVectors(a.velocity, b.velocity);
+              const sepVel = relVel.dot(distVec);
+              if (sepVel < 0) {
+                const impulse = distVec.clone().multiplyScalar(sepVel);
+                a.velocity.sub(impulse);
+                b.velocity.add(impulse);
+              }
+            }
+          }
+
+          // Animate
+          function animate() {
+            requestAnimationFrame(animate);
+
+            // update positions & boundary collisions
+            for (let i = 0; i < marbles.length; i++) {
+              const m = marbles[i];
+              m.mesh.position.add(m.velocity);
+              const dist = m.mesh.position.length();
+              if (dist + sphereRadius > boundaryRadius) {
+                const normal = m.mesh.position.clone().normalize();
+                reflectVelocity(m.velocity, normal);
+                m.mesh.position.setLength(boundaryRadius - sphereRadius);
+              }
+            }
+
+            // collisions
+            for (let i = 0; i < marbles.length; i++) {
+              for (let j = i + 1; j < marbles.length; j++) {
+                const dist = marbles[i].mesh.position.distanceTo(marbles[j].mesh.position);
+                if (dist < sphereRadius * 2.0) {
+                  resolveCollision(marbles[i], marbles[j]);
+                }
+              }
+            }
+
+            scene.rotation.y += 0.002;
+            scene.rotation.x += 0.001;
+
+            controls.update();
+            renderer.render(scene, camera);
+          }
+          animate();
+
+          // Cleanup
+          return () => {
+            containerRef.current.removeChild(renderer.domElement);
+            renderer.dispose();
+          };
+        }, [canvasSize, sphereCount, sphereRadius, roughness, metalness, transmission, ior, thickness, envMapIntensity]);
+
+        return <div className="three-canvas-container" ref={containerRef}></div>;
+      };
+
+      /*******************************************************
+       * React App Component
+       *******************************************************/
+      const App = () => {
+        const headerRef = useRef(null);
+
+        // States for controlling parameters
+        const [canvasSize, setCanvasSize] = useState(0);
+        const bottomMargin = 20;
+
+        // New states: number of spheres, sphere radius, roughness, metalness, transmission, ior, thickness, envMapIntensity
+        const [showControls, setShowControls] = useState(false);
+        const [sphereCount, setSphereCount] = useState(12);
+        const [sphereRadius, setSphereRadius] = useState(0.3);
+        const [roughness, setRoughness] = useState(0.1);
+        const [metalness, setMetalness] = useState(0.95);
+        const [transmission, setTransmission] = useState(0.49);
+        const [ior, setIor] = useState(1.45);
+        const [thickness, setThickness] = useState(0.5);
+        const [envMapIntensity, setEnvMapIntensity] = useState(1.0);
+
+        const computeCanvasSize = () => {
+          const headerHeight = headerRef.current ? headerRef.current.offsetHeight : 0;
+          const availableHeight = window.innerHeight - headerHeight - bottomMargin;
+          return Math.min(window.innerWidth, availableHeight);
+        };
+
+        useEffect(() => {
+          const handleResize = () => {
+            setCanvasSize(computeCanvasSize());
+          };
+          handleResize();
+          window.addEventListener('resize', handleResize);
+          return () => window.removeEventListener('resize', handleResize);
+        }, []);
+
+        return (
+          <div>
+            <header ref={headerRef}>
+              <a href="index.html">Back to Home</a>
+              <h1>Spheres</h1>
+            </header>
+            {canvasSize > 0 && (
+              <div
+                id="canvas-container"
+                style={{
+                  width: "100%",       // so it matches header width
+                  flex: 1,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginTop: 0,
+                  height: canvasSize,
+                  position: 'relative'
+                }}
+              >
+                {/* Toggle button */}
+                <button
+                  className="toggle-button"
+                  onClick={() => setShowControls(!showControls)}
+                >
+                  {showControls ? 'Hide Controls' : 'Show Controls'}
+                </button>
+
+                {showControls && (
+                  <div className="controls-overlay" onTouchMove={(e)=>e.preventDefault()}>
+                    <div className="controls">
+                      <label>
+                        Number of Spheres: {sphereCount}
+                        <input
+                          type="range"
+                          min="1"
+                          max="50"
+                          step="2"
+                          value={sphereCount}
+                          onChange={(e)=> setSphereCount(parseInt(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Sphere Radius: {sphereRadius.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1.0"
+                          step="0.05"
+                          value={sphereRadius}
+                          onChange={(e)=> setSphereRadius(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Roughness: {roughness.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="1.0"
+                          step="0.05"
+                          value={roughness}
+                          onChange={(e)=> setRoughness(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Metalness: {metalness.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="1.0"
+                          step="0.05"
+                          value={metalness}
+                          onChange={(e)=> setMetalness(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Transmission: {transmission.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="1.0"
+                          step="0.05"
+                          value={transmission}
+                          onChange={(e)=> setTransmission(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        IOR: {ior.toFixed(2)}
+                        <input
+                          type="range"
+                          min="1.0"
+                          max="2.0"
+                          step="0.05"
+                          value={ior}
+                          onChange={(e)=> setIor(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        Thickness: {thickness.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="2.0"
+                          step="0.1"
+                          value={thickness}
+                          onChange={(e)=> setThickness(parseFloat(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        EnvMapIntensity: {envMapIntensity.toFixed(2)}
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="2.0"
+                          step="0.1"
+                          value={envMapIntensity}
+                          onChange={(e)=> setEnvMapIntensity(parseFloat(e.target.value))}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Key prop ensures we re-mount the ThreeCanvas whenever these states change, so it rebuilds scene */}
+                <ThreeCanvas
+                  key={`scene-${sphereCount}-${sphereRadius}-${roughness}-${metalness}-${transmission}-${ior}-${thickness}-${envMapIntensity}`}
+                  canvasSize={canvasSize}
+                  sphereCount={sphereCount}
+                  sphereRadius={sphereRadius}
+                  roughness={roughness}
+                  metalness={metalness}
+                  transmission={transmission}
+                  ior={ior}
+                  thickness={thickness}
+                  envMapIntensity={envMapIntensity}
+                />
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>
