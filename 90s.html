@@ -241,8 +241,8 @@
     let chunkIndex = 0;
     const chunkHeight = 1000;
     const containersPerChunk = 15;
-    const shapesPerChunk = 5;
-    const floatersPerChunk = 5;
+    const shapesPerChunk = 10;
+    const floatersPerChunk = 10;
 
     // We'll add random dots in some chunks. e.g. 50% chance to spawn dots each chunk.
     function maybeSpawnDots(topBoundary, bottomBoundary) {
@@ -254,7 +254,7 @@
           dot.className = 'random-dot';
 
           // random size for dot
-          const size = getRandomInt(5, 20);
+          const size = getRandomInt(1, 15);
           dot.style.width = `${size}px`;
           dot.style.height = `${size}px`;
 
@@ -322,27 +322,6 @@
       const topBoundary = chunkIndex * chunkHeight;
       const bottomBoundary = (chunkIndex + 1) * chunkHeight;
 
-      // 1) containers with random icons
-      for (let i = 0; i < containersPerChunk; i++) {
-        const container = document.createElement('div');
-        container.className = 'random-container';
-
-        const iconSrc = icons[Math.floor(Math.random() * icons.length)];
-        const img = document.createElement('img');
-        img.src = iconSrc;
-        img.width = 64;
-        img.height = 64;
-        container.appendChild(img);
-
-        const maxLeft = window.innerWidth - 100;
-        container.style.left = `${getRandomInt(0, maxLeft)}px`;
-        container.style.top = `${getRandomInt(topBoundary, bottomBoundary - 100)}px`;
-        container.style.width = `${getRandomInt(50, 200)}px`;
-        container.style.height = `${getRandomInt(50, 200)}px`;
-
-        document.body.appendChild(container);
-        dynamicItems.push(makeDynamicItem(container, 'container'));
-      }
 
       // 2) shapes
       for (let i = 0; i < shapesPerChunk; i++) {
@@ -385,7 +364,7 @@
 
         const shapeTypes = ['circle', 'square','triangle'];
         const chosenShape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
-        const size = getRandomInt(30, 80);
+        const size = getRandomInt(5, 180);
         floater.style.width = `${size}px`;
         floater.style.height = `${size}px`;
         if (chosenShape === 'circle') {
