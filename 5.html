@@ -16,18 +16,10 @@
       width: 100%;
       max-width: 100vw;
       display: grid;
-      /* Default: each square is at least 300px wide */
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 10px;
       padding: 10px;
       box-sizing: border-box;
-    }
-    /* Media query for smaller devices (e.g. iPhone) */
-    @media screen and (max-width: 480px) {
-      #art-container {
-        /* On small screens, allow squares to be as small as 120px so that more fit per row */
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      }
     }
     .art-square {
       position: relative;
@@ -56,11 +48,12 @@
 </head>
 <body>
   <div id="art-container"></div>
+
   <script>
     // Global array to store all canvas elements for dynamic updates.
     const canvases = [];
 
-    // Global variable to limit face updates.
+    // Global variables for face update control.
     let lastFaceUpdate = 0;
     const FACE_UPDATE_THRESHOLD = 50; // Update faces only if scrollY increases by 100px.
     let isTicking = false;
@@ -157,8 +150,8 @@
         // Set up shadow for a 3D effect.
         ctx.shadowColor = 'rgba(0,0,0,0.3)';
         ctx.shadowBlur = size * 0.1;
-        ctx.shadowOffsetX = size * 0.07;
-        ctx.shadowOffsetY = size * 0.07;
+        ctx.shadowOffsetX = size * 0.05;
+        ctx.shadowOffsetY = size * 0.05;
 
         ctx.fillStyle = shape.color;
         if (shape.rotate && shape.type !== "circle") {
@@ -224,8 +217,8 @@
 
       // Left Eye:
       const leftEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
-      const leftEyeX = width * randomPos(baseLeftEyePos.x, 0.07);
-      const leftEyeY = height * randomPos(baseLeftEyePos.y, 0.07);
+      const leftEyeX = width * randomPos(baseLeftEyePos.x, 0.05);
+      const leftEyeY = height * randomPos(baseLeftEyePos.y, 0.05);
       const leftEyeSize = randomBetween(width * 0.04, width * 0.3);
       const leftEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
       ctx.shadowColor = 'rgba(0,0,0,0.3)';
@@ -256,8 +249,8 @@
 
       // Right Eye:
       const rightEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
-      const rightEyeX = width * randomPos(baseRightEyePos.x, 0.07);
-      const rightEyeY = height * randomPos(baseRightEyePos.y, 0.07);
+      const rightEyeX = width * randomPos(baseRightEyePos.x, 0.05);
+      const rightEyeY = height * randomPos(baseRightEyePos.y, 0.05);
       const rightEyeSize = randomBetween(width * 0.04, width * 0.3);
       const rightEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
       ctx.shadowColor = 'rgba(0,0,0,0.3)';
@@ -290,7 +283,7 @@
       const noseType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
       const noseX = width * randomPos(baseNosePos.x, 0.03);
       const noseY = height * randomPos(baseNosePos.y, 0.03);
-      const noseSize = randomBetween(width * 0.03, width * 0.3);
+      const noseSize = randomBetween(width * 0.03, width * 0.2);
       const noseColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
       ctx.shadowColor = 'rgba(0,0,0,0.3)';
       ctx.shadowBlur = noseSize * 0.1;
