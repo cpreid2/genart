@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Infinite Scroll: Responsive Shape Scaling</title>
+  <title>Infinite Scroll: 3D Shadows & Responsive Shapes</title>
   <style>
     body {
       margin: 0;
@@ -48,9 +48,15 @@
 </head>
 <body>
   <div id="art-container"></div>
+
   <script>
     // Global array to store all canvas elements for dynamic updates.
     const canvases = [];
+
+    // Global variables for face update control.
+    let lastFaceUpdate = 0;
+    const FACE_UPDATE_THRESHOLD = 50; // Update faces only if scrollY increases by 100px.
+    let isTicking = false;
 
     // -----------------------------
     // Distinct Palette Generation Code
@@ -86,11 +92,10 @@
 
     /**
      * Generate an array of shapes for a canvas.
-     * Instead of storing a pixel size, we now store a relative size (fraction of canvas width).
-     * (A random value between 0.05 and 0.2, further modulated by the square’s random scaleFactor.)
+     * Instead of storing an absolute pixel size, we now store a fraction of the canvas width.
      */
     function generateShapes(scaleFactor, palette) {
-      const minScale = 0.5, maxScale = 15.5;
+      const minScale = 0.5, maxScale = 5.5;
       const minShapes = 3, maxShapes = 15;
       const count = Math.floor(mapRange(scaleFactor, minScale, maxScale, maxShapes, minShapes));
       const shapes = [];
@@ -101,7 +106,7 @@
           type: shapeTypes[Math.floor(Math.random() * shapeTypes.length)],
           x: Math.random(),
           y: Math.random(),
-          // Instead of an absolute pixel size, store a fraction of canvas width:
+          // Store baseSize as a fraction of the canvas width.
           baseSize: randomBetween(0.05, 0.2) * scaleFactor,
           color: palette[Math.floor(Math.random() * palette.length)],
           phase: randomBetween(0, Math.PI * 2),
@@ -113,10 +118,9 @@
       return shapes;
     }
 
-    // Standard generative art drawing.
+    // Standard generative art drawing with shadows.
     function drawArt(canvas) {
       const ctx = canvas.getContext("2d");
-      // Update the canvas size based on its current display dimensions.
       const width = canvas.width = canvas.clientWidth;
       const height = canvas.height = canvas.clientHeight;
       ctx.clearRect(0, 0, width, height);
@@ -139,9 +143,16 @@
           x = shape.x * width;
           y = shape.y * height;
         }
-        // Multiply the stored relative base size by the current canvas width.
         const scaleOsc = 1 + 0.5 * Math.sin(globalFactor + shape.phase);
+        // Compute size based on stored fraction times the current canvas width.
         const size = shape.baseSize * width * scaleOsc;
+
+        // Set up shadow for a 3D effect.
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = size * 0.1;
+        ctx.shadowOffsetX = size * 0.05;
+        ctx.shadowOffsetY = size * 0.05;
+
         ctx.fillStyle = shape.color;
         if (shape.rotate && shape.type !== "circle") {
           const rotation = (shape.baseRotation * Math.PI / 180) + (window.scrollY / 100 * shape.rotationSpeed);
@@ -177,13 +188,12 @@
             ctx.fill();
           }
         }
+        // Reset shadow settings.
+        ctx.shadowColor = 'transparent';
       });
     }
 
-    // (Face, Inception, Strip, and Blank branches remain unchanged.)
-    // ... [The rest of the code remains the same as before]
-
-    // Face-drawing function with randomly sized, typed, and positioned parts.
+    // Face-drawing function with randomly sized, typed, and positioned parts plus shadows.
     function drawFace(canvas) {
       const ctx = canvas.getContext("2d");
       const width = canvas.width = canvas.clientWidth;
@@ -192,6 +202,7 @@
       ctx.fillStyle = canvas.bgColor;
       ctx.fillRect(0, 0, width, height);
 
+      // Base positions (as percentages) for face features.
       const baseLeftEyePos = { x: 0.25, y: 0.35 };
       const baseRightEyePos = { x: 0.75, y: 0.35 };
       const baseNosePos = { x: 0.5, y: 0.5 };
@@ -204,11 +215,16 @@
       const shapeOptions = ["circle", "rect", "triangle"];
       const mouthOptions = ["arc", "rect", "line"];
 
+      // Left Eye:
       const leftEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
-      const leftEyeX = width * randomPos(baseLeftEyePos.x, 0.1);
-      const leftEyeY = height * randomPos(baseLeftEyePos.y, 0.1);
+      const leftEyeX = width * randomPos(baseLeftEyePos.x, 0.05);
+      const leftEyeY = height * randomPos(baseLeftEyePos.y, 0.05);
       const leftEyeSize = randomBetween(width * 0.04, width * 0.3);
       const leftEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = leftEyeSize * 0.1;
+      ctx.shadowOffsetX = leftEyeSize * 0.05;
+      ctx.shadowOffsetY = leftEyeSize * 0.05;
       ctx.fillStyle = leftEyeColor;
       switch (leftEyeType) {
         case "circle":
@@ -229,11 +245,18 @@
           ctx.fill();
           break;
       }
+      ctx.shadowColor = 'transparent';
+
+      // Right Eye:
       const rightEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
-      const rightEyeX = width * randomPos(baseRightEyePos.x, 0.1);
-      const rightEyeY = height * randomPos(baseRightEyePos.y, 0.1);
+      const rightEyeX = width * randomPos(baseRightEyePos.x, 0.05);
+      const rightEyeY = height * randomPos(baseRightEyePos.y, 0.05);
       const rightEyeSize = randomBetween(width * 0.04, width * 0.3);
       const rightEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = rightEyeSize * 0.1;
+      ctx.shadowOffsetX = rightEyeSize * 0.05;
+      ctx.shadowOffsetY = rightEyeSize * 0.05;
       ctx.fillStyle = rightEyeColor;
       switch (rightEyeType) {
         case "circle":
@@ -254,11 +277,18 @@
           ctx.fill();
           break;
       }
+      ctx.shadowColor = 'transparent';
+
+      // Nose:
       const noseType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
       const noseX = width * randomPos(baseNosePos.x, 0.03);
       const noseY = height * randomPos(baseNosePos.y, 0.03);
-      const noseSize = randomBetween(width * 0.03, width * 0.15);
+      const noseSize = randomBetween(width * 0.03, width * 0.2);
       const noseColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = noseSize * 0.1;
+      ctx.shadowOffsetX = noseSize * 0.05;
+      ctx.shadowOffsetY = noseSize * 0.05;
       ctx.fillStyle = noseColor;
       switch (noseType) {
         case "circle":
@@ -279,12 +309,19 @@
           ctx.fill();
           break;
       }
+      ctx.shadowColor = 'transparent';
+
+      // Mouth:
       const mouthType = mouthOptions[Math.floor(Math.random() * mouthOptions.length)];
       const mouthX = width * randomPos(baseMouthPos.x, 0.05);
       const mouthY = height * randomPos(baseMouthPos.y, 0.05);
-      const mouthSize = randomBetween(width * 0.08, width * 0.55);
+      const mouthSize = randomBetween(width * 0.08, width * 0.4);
       const mouthColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
       ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = mouthSize * 0.1;
+      ctx.shadowOffsetX = mouthSize * 0.05;
+      ctx.shadowOffsetY = mouthSize * 0.05;
       ctx.strokeStyle = mouthColor;
       ctx.fillStyle = mouthColor;
       switch (mouthType) {
@@ -303,11 +340,8 @@
           ctx.stroke();
           break;
       }
+      ctx.shadowColor = 'transparent';
     }
-
-    // Global variable to limit face updates.
-    let lastFaceUpdate = 0;
-    const FACE_UPDATE_THRESHOLD = 35; // Update faces only if scrollY increases by 100px.
 
     // Create and append a new art square.
     function addArtSquare() {
@@ -431,7 +465,6 @@
       isTicking = false;
     }
 
-    let isTicking = false;
     for (let i = 0; i < 20; i++) {
       addArtSquare();
     }
