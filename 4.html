@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Totally 90s - Infinite Scroll EXTRAVAGANZA! (No Tetris, No GIFs, Random Dots, Configurable)</title>
+  <style>
+    /* Keep everything within viewport width, no horizontal scroll */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    body {
+      /* 90s meltdown background + bright colors */
+      background: url('https://www.oldwebtoday.com/Geocities/EnchantedForest/8661/crownspin.gif') repeat, #00FFFF;
+      color: #FF00FF; /* hot pink text */
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+    }
+
+    .controls {
+      background: #CCCCFF;
+      border: 3px ridge #9999FF;
+      padding: 10px;
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      position: sticky;
+      top: 0;
+      z-index: 9999;
+    }
+
+    /* Basic form elements styling for that old-school vibe */
+    .controls label {
+      margin-right: 10px;
+    }
+    .controls select {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      background: #FFFFCC;
+      color: #000;
+      margin-right: 10px;
+    }
+
+    .random-container {
+      position: absolute;
+      border: 3px dashed #0000FF;
+      background-color: #FFFF00;
+      padding: 10px;
+      text-align: center;
+      animation: spinAround 5s linear infinite;
+      box-shadow: 5px 5px 10px #FF00FF;
+      transition: transform 0.2s linear;
+    }
+
+    @keyframes spinAround {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .my-marquee {
+      width: 100%;
+      background: #FF00FF;
+      color: #0000FF;
+      font-weight: bold;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    blink {
+      animation: blink-animation 1s steps(2, start) infinite;
+    }
+    @keyframes blink-animation {
+      to {
+        visibility: hidden;
+      }
+    }
+
+    .rainbow {
+      font-size: 40px;
+      font-weight: bold;
+      background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: hueRotate 2s linear infinite;
+    }
+
+    @keyframes hueRotate {
+      0% {
+        filter: hue-rotate(0deg);
+      }
+      100% {
+        filter: hue-rotate(360deg);
+      }
+    }
+
+    .random-shape {
+      position: absolute;
+      box-shadow: 3px 3px 8px #000;
+      transition: transform 0.2s linear, background-color 0.2s linear;
+    }
+
+    .floaty-thing {
+      position: absolute;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+      animation-name: floatIt;
+      animation-iteration-count: infinite;
+      animation-direction: alternate;
+      animation-timing-function: ease-in-out;
+      transition: transform 0.2s linear, background-color 0.2s linear;
+    }
+
+    @keyframes floatIt {
+      0% {
+        transform: translate(0, 0) rotate(0deg);
+      }
+      25% {
+        transform: translate(-50px, 30px) rotate(15deg);
+      }
+      50% {
+        transform: translate(40px, -20px) rotate(-10deg);
+      }
+      75% {
+        transform: translate(-30px, -50px) rotate(15deg);
+      }
+      100% {
+        transform: translate(0, 0) rotate(0deg);
+      }
+    }
+
+    .random-dot {
+      position: absolute;
+      border-radius: 50%;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      transition: transform 0.2s linear, background-color 0.2s linear;
+    }
+  </style>
+</head>
+<body>
+  <!-- Control Panel for user to set various parameters -->
+  <div class="controls">
+    <label for="bgColor">Background Color:</label>
+    <select id="bgColor">
+      <option value="teal">Teal</option>
+      <option value="lime">Lime</option>
+      <option value="orange">Orange</option>
+      <option value="#00FFFF" selected>Cyan</option>
+      <option value="#FF69B4">HotPink</option>
+    </select>
+
+    <label for="rotationSpeed">Rotation Speed:</label>
+    <select id="rotationSpeed">
+      <option value="0.05">Low</option>
+      <option value="0.1" selected>Medium</option>
+      <option value="0.2">High</option>
+      <option value="0.3">Insane</option>
+    </select>
+
+    <label for="growthSpeed">Growth Speed:</label>
+    <select id="growthSpeed">
+      <option value="0.0002">Tiny Growth</option>
+      <option value="0.0005" selected>Normal</option>
+      <option value="0.001">Fast</option>
+      <option value="0.002">Faster</option>
+    </select>
+
+    <button onclick="applySettings()">Apply Settings</button>
+  </div>
+
+  <!-- Single marquee with rainbow text at the top -->
+  <marquee class="my-marquee" behavior="scroll" direction="left" scrollamount="10">
+    <blink class="rainbow">:) :) :) :) :) :) :) ;) :) :) :) :) :) :)</blink>
+  </marquee>
+
+
+  <script>
+    let dynamicItems = [];
+
+    // function to apply user-chosen settings
+    function applySettings() {
+      const bg = document.getElementById('bgColor').value;
+      document.body.style.background = `url('https://www.oldwebtoday.com/Geocities/EnchantedForest/8661/crownspin.gif') repeat, ${bg}`;
+
+      const rot = parseFloat(document.getElementById('rotationSpeed').value);
+      const growth = parseFloat(document.getElementById('growthSpeed').value);
+
+      // update dynamic items
+      dynamicItems.forEach(item => {
+        item.rotFactor = rot;
+        item.sizeFactor = growth;
+      });
+    }
+
+    // Generate random icons for 90s containers
+    function generateRandomIcon() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+
+      const hue = Math.floor(Math.random() * 360);
+      ctx.fillStyle = `hsl(${hue}, 100%, 80%)`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const shapesCount = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < shapesCount; i++) {
+        ctx.beginPath();
+        ctx.fillStyle = `hsl(${(hue + i * 60) % 360}, 100%, 50%)`;
+        const shapeType = Math.floor(Math.random() * 3);
+        if (shapeType === 0) {
+          const x = Math.random() * 64;
+          const y = Math.random() * 64;
+          const r = Math.random() * 20 + 5;
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (shapeType === 1) {
+          const w = Math.random() * 30 + 5;
+          const h = Math.random() * 30 + 5;
+          const x = Math.random() * (64 - w);
+          const y = Math.random() * (64 - h);
+          ctx.fillRect(x, y, w, h);
+        } else {
+          ctx.moveTo(Math.random() * 64, Math.random() * 64);
+          ctx.lineTo(Math.random() * 64, Math.random() * 64);
+          ctx.lineTo(Math.random() * 64, Math.random() * 64);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      return canvas.toDataURL('image/png');
+    }
+
+    // Pre-generate random icons
+    const icons = [];
+    for (let i = 0; i < 20; i++) {
+      icons.push(generateRandomIcon());
+    }
+
+    let chunkIndex = 0;
+    const chunkHeight = 1000;
+    const containersPerChunk = 15;
+    const shapesPerChunk = 10;
+    const floatersPerChunk = 10;
+
+    // We'll add random dots in some chunks. e.g. 50% chance to spawn dots each chunk.
+    function maybeSpawnDots(topBoundary, bottomBoundary) {
+      if (Math.random() < 0.5) {
+        // spawn some random dots
+        const dotCount = getRandomInt(5, 12);
+        for (let i = 0; i < dotCount; i++) {
+          const dot = document.createElement('div');
+          dot.className = 'random-dot';
+
+          // random size for dot
+          const size = getRandomInt(1, 15);
+          dot.style.width = `${size}px`;
+          dot.style.height = `${size}px`;
+
+          // random color
+          const hue = Math.floor(Math.random() * 360);
+          dot.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+
+          // random position
+          const maxLeft = window.innerWidth - size;
+          const x = getRandomInt(0, maxLeft);
+          const y = getRandomInt(topBoundary, bottomBoundary - size);
+          dot.style.left = `${x}px`;
+          dot.style.top = `${y}px`;
+
+          document.body.appendChild(dot);
+
+          // if we want them to also scale with scroll
+          dynamicItems.push({
+            el: dot,
+            baseHue: hue,
+            hueSpeed: Math.random()*0.2 + 0.05,
+            sizeFactor: 0.0005, // default
+            rotFactor: 0 // dots won't rotate
+          });
+        }
+      }
+    }
+
+    function getRandomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Continual growth approach
+    function makeDynamicItem(element, kind) {
+      // default factors can be updated by user from the controls
+      return {
+        el: element,
+        kind,
+        baseHue: Math.floor(Math.random() * 360),
+        hueSpeed: Math.random() * 0.2 + 0.05,
+        sizeFactor: 0.0005,
+        rotFactor: 0.1
+      };
+    }
+
+    function animateAll() {
+      requestAnimationFrame(animateAll);
+      const scrollY = window.scrollY;
+
+      dynamicItems.forEach(item => {
+        const { el, baseHue, hueSpeed, sizeFactor, rotFactor } = item;
+        // color shift
+        const newHue = (baseHue + scrollY * hueSpeed) % 360;
+        el.style.backgroundColor = `hsl(${newHue}, 100%, 50%)`;
+
+        // scale grows with scroll
+        const scale = 1 + scrollY * sizeFactor;
+        const rotation = scrollY * rotFactor;
+        el.style.transform = `scale(${scale}) rotate(${rotation}deg)`;
+      });
+    }
+    requestAnimationFrame(animateAll);
+
+    function spawnChunk() {
+      const topBoundary = chunkIndex * chunkHeight;
+      const bottomBoundary = (chunkIndex + 1) * chunkHeight;
+
+
+      // 2) shapes
+      for (let i = 0; i < shapesPerChunk; i++) {
+        const shape = document.createElement('div');
+        shape.className = 'random-shape';
+
+        const shapeTypes = ['circle', 'square', 'triangle'];
+        const chosenShape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+        const hue = Math.floor(Math.random() * 360);
+        const color = `hsl(${hue}, 100%, 50%)`;
+        shape.style.backgroundColor = color;
+
+        const maxLeft = window.innerWidth - 100;
+        shape.style.left = `${getRandomInt(0, maxLeft)}px`;
+        shape.style.top = `${getRandomInt(topBoundary, bottomBoundary - 100)}px`;
+
+        const size = getRandomInt(40, 100);
+        shape.style.width = `${size}px`;
+        shape.style.height = `${size}px`;
+
+        if (chosenShape === 'circle') {
+          shape.style.borderRadius = '50%';
+        } else if (chosenShape === 'square') {
+          shape.style.borderRadius = '0';
+        } else {
+
+        }
+
+        document.body.appendChild(shape);
+        dynamicItems.push(makeDynamicItem(shape, 'shape'));
+      }
+
+      // 3) floaters
+      for (let i = 0; i < floatersPerChunk; i++) {
+        const floater = document.createElement('div');
+        floater.className = 'floaty-thing';
+
+        const hue = Math.floor(Math.random() * 360);
+        floater.style.backgroundColor = `hsl(${hue}, 100%, 70%)`;
+
+        const shapeTypes = ['circle', 'square','triangle'];
+        const chosenShape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+        const size = getRandomInt(5, 180);
+        floater.style.width = `${size}px`;
+        floater.style.height = `${size}px`;
+        if (chosenShape === 'circle') {
+          floater.style.borderRadius = '50%';
+        }
+
+        const maxLeft2 = window.innerWidth - size;
+        floater.style.left = `${getRandomInt(0, maxLeft2)}px`;
+        floater.style.top = `${getRandomInt(topBoundary, bottomBoundary - size)}px`;
+
+        const floatDuration = getRandomInt(5, 15);
+        floater.style.animationDuration = `${floatDuration}s`;
+
+        document.body.appendChild(floater);
+        dynamicItems.push(makeDynamicItem(floater, 'floater'));
+      }
+
+      // 4) maybe spawn random dots
+      maybeSpawnDots(topBoundary, bottomBoundary);
+
+      chunkIndex++;
+    }
+
+    // initial chunk
+    spawnChunk();
+
+    // infinite scroll
+    window.addEventListener('scroll', () => {
+      const scrollPosition = window.scrollY + window.innerHeight;
+      const docHeight = document.body.offsetHeight;
+      if (scrollPosition >= docHeight - 500) {
+        spawnChunk();
+      }
+    });
+
+    /*********************************************
+     * TEST CASES:
+     * 1) No horizontal scroll.
+     * 2) Continual growth scale = 1 + scrollY*sizeFactor.
+     * 3) Random dots appear in about half the chunks.
+     * 4) No Tetris, no baby marquee.
+     * 5) Top controls let user pick color scheme, rotation speed, growth speed.
+    *********************************************/
+  </script>
+
+  <!-- Single marquee for Under Construction note at bottom -->
+  <marquee class="my-marquee" behavior="alternate" direction="right" scrollamount="20">
+    <blink>Under Construction!</blink> <blink>Best Viewed in Netscape 3.0!</blink>
+  </marquee>
+</body>
+</html>

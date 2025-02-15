@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinite Scroll: Responsive Shape Scaling</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      background: #fafafa;
+    }
+    #art-container {
+      width: 100%;
+      max-width: 100vw;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 10px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .art-square {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background-color: #eee;
+      overflow: hidden;
+    }
+    /* Normal canvases fill the square absolutely */
+    .art-square > canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* For subdivided or strip canvases, use normal positioning */
+    .sub-canvas {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="art-container"></div>
+  <script>
+    // Global array to store all canvas elements for dynamic updates.
+    const canvases = [];
+
+    // -----------------------------
+    // Distinct Palette Generation Code
+    // -----------------------------
+    const midcenturyPalettes = [];
+    function randomBetween(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+    function generatePalette() {
+      const palette = [];
+      const baseHue = randomBetween(0, 360);
+      const hueStep = 360 / 50;
+      for (let i = 0; i < 50; i++) {
+        let hue = baseHue + i * hueStep;
+        hue = (hue + randomBetween(-hueStep / 4, hueStep / 4)) % 360;
+        const sat = Math.floor(randomBetween(0, 100));
+        const light = Math.floor(randomBetween(0, 100));
+        palette.push(`hsla(${hue}, ${sat}%, ${light}%, 1)`);
+      }
+      return palette;
+    }
+    for (let i = 0; i < 1000; i++) {
+      midcenturyPalettes.push(generatePalette());
+    }
+    // -----------------------------
+    // End Palette Generation Code
+    // -----------------------------
+
+    // Utility: Map a number from one range to another.
+    function mapRange(value, inMin, inMax, outMin, outMax) {
+      return outMin + ((value - inMin) * (outMax - outMin)) / (inMax - inMin);
+    }
+
+    /**
+     * Generate an array of shapes for a canvas.
+     * Instead of storing a pixel size, we now store a relative size (fraction of canvas width).
+     * (A random value between 0.05 and 0.2, further modulated by the square’s random scaleFactor.)
+     */
+    function generateShapes(scaleFactor, palette) {
+      const minScale = 0.5, maxScale = 15.5;
+      const minShapes = 3, maxShapes = 15;
+      const count = Math.floor(mapRange(scaleFactor, minScale, maxScale, maxShapes, minShapes));
+      const shapes = [];
+      const shapeTypes = ["circle", "rect", "triangle"];
+      for (let i = 0; i < count; i++) {
+        const shouldRotate = Math.random() < 0.5;
+        shapes.push({
+          type: shapeTypes[Math.floor(Math.random() * shapeTypes.length)],
+          x: Math.random(),
+          y: Math.random(),
+          // Instead of an absolute pixel size, store a fraction of canvas width:
+          baseSize: randomBetween(0.05, 0.2) * scaleFactor,
+          color: palette[Math.floor(Math.random() * palette.length)],
+          phase: randomBetween(0, Math.PI * 2),
+          rotate: shouldRotate,
+          baseRotation: shouldRotate ? randomBetween(0, 360) : 0,
+          rotationSpeed: shouldRotate ? randomBetween(0.1, 2) : 0
+        });
+      }
+      return shapes;
+    }
+
+    // Standard generative art drawing.
+    function drawArt(canvas) {
+      const ctx = canvas.getContext("2d");
+      // Update the canvas size based on its current display dimensions.
+      const width = canvas.width = canvas.clientWidth;
+      const height = canvas.height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = canvas.bgColor;
+      ctx.fillRect(0, 0, width, height);
+      const globalFactor = window.scrollY / 100;
+      let x, y;
+      if (!canvas.shapes) return;
+      canvas.shapes.forEach(shape => {
+        if (canvas.isStrip) {
+          const timeFactor = (performance.now() / 10000) * canvas.stripSpeed;
+          if (canvas.orientation === "vertical") {
+            x = ((timeFactor + shape.x) % 1) * width;
+            y = shape.y * height;
+          } else {
+            x = shape.x * width;
+            y = ((timeFactor + shape.y) % 1) * height;
+          }
+        } else {
+          x = shape.x * width;
+          y = shape.y * height;
+        }
+        // Multiply the stored relative base size by the current canvas width.
+        const scaleOsc = 1 + 0.5 * Math.sin(globalFactor + shape.phase);
+        const size = shape.baseSize * width * scaleOsc;
+        ctx.fillStyle = shape.color;
+        if (shape.rotate && shape.type !== "circle") {
+          const rotation = (shape.baseRotation * Math.PI / 180) + (window.scrollY / 100 * shape.rotationSpeed);
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rotation);
+          if (shape.type === "rect") {
+            ctx.fillRect(-size / 2, -size / 2, size, size);
+          } else if (shape.type === "triangle") {
+            const h = size * Math.sqrt(3) / 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -h / 2);
+            ctx.lineTo(-size / 2, h / 2);
+            ctx.lineTo(size / 2, h / 2);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          if (shape.type === "circle") {
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
+            ctx.fill();
+          } else if (shape.type === "rect") {
+            ctx.fillRect(x - size / 2, y - size / 2, size, size);
+          } else if (shape.type === "triangle") {
+            const h = size * Math.sqrt(3) / 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y - h / 2);
+            ctx.lineTo(x - size / 2, y + h / 2);
+            ctx.lineTo(x + size / 2, y + h / 2);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+      });
+    }
+
+    // (Face, Inception, Strip, and Blank branches remain unchanged.)
+    // ... [The rest of the code remains the same as before]
+
+    // Face-drawing function with randomly sized, typed, and positioned parts.
+    function drawFace(canvas) {
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width = canvas.clientWidth;
+      const height = canvas.height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = canvas.bgColor;
+      ctx.fillRect(0, 0, width, height);
+
+      const baseLeftEyePos = { x: 0.25, y: 0.35 };
+      const baseRightEyePos = { x: 0.75, y: 0.35 };
+      const baseNosePos = { x: 0.5, y: 0.5 };
+      const baseMouthPos = { x: 0.5, y: 0.7 };
+
+      function randomPos(base, offsetRange) {
+        return base + randomBetween(-offsetRange, offsetRange);
+      }
+
+      const shapeOptions = ["circle", "rect", "triangle"];
+      const mouthOptions = ["arc", "rect", "line"];
+
+      const leftEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
+      const leftEyeX = width * randomPos(baseLeftEyePos.x, 0.1);
+      const leftEyeY = height * randomPos(baseLeftEyePos.y, 0.1);
+      const leftEyeSize = randomBetween(width * 0.04, width * 0.3);
+      const leftEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.fillStyle = leftEyeColor;
+      switch (leftEyeType) {
+        case "circle":
+          ctx.beginPath();
+          ctx.arc(leftEyeX, leftEyeY, leftEyeSize / 2, 0, 2 * Math.PI);
+          ctx.fill();
+          break;
+        case "rect":
+          ctx.fillRect(leftEyeX - leftEyeSize / 2, leftEyeY - leftEyeSize / 2, leftEyeSize, leftEyeSize);
+          break;
+        case "triangle":
+          const h1 = leftEyeSize * Math.sqrt(3) / 2;
+          ctx.beginPath();
+          ctx.moveTo(leftEyeX, leftEyeY - h1 / 2);
+          ctx.lineTo(leftEyeX - leftEyeSize / 2, leftEyeY + h1 / 2);
+          ctx.lineTo(leftEyeX + leftEyeSize / 2, leftEyeY + h1 / 2);
+          ctx.closePath();
+          ctx.fill();
+          break;
+      }
+      const rightEyeType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
+      const rightEyeX = width * randomPos(baseRightEyePos.x, 0.1);
+      const rightEyeY = height * randomPos(baseRightEyePos.y, 0.1);
+      const rightEyeSize = randomBetween(width * 0.04, width * 0.3);
+      const rightEyeColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.fillStyle = rightEyeColor;
+      switch (rightEyeType) {
+        case "circle":
+          ctx.beginPath();
+          ctx.arc(rightEyeX, rightEyeY, rightEyeSize / 2, 0, 2 * Math.PI);
+          ctx.fill();
+          break;
+        case "rect":
+          ctx.fillRect(rightEyeX - rightEyeSize / 2, rightEyeY - rightEyeSize / 2, rightEyeSize, rightEyeSize);
+          break;
+        case "triangle":
+          const h2 = rightEyeSize * Math.sqrt(3) / 2;
+          ctx.beginPath();
+          ctx.moveTo(rightEyeX, rightEyeY - h2 / 2);
+          ctx.lineTo(rightEyeX - rightEyeSize / 2, rightEyeY + h2 / 2);
+          ctx.lineTo(rightEyeX + rightEyeSize / 2, rightEyeY + h2 / 2);
+          ctx.closePath();
+          ctx.fill();
+          break;
+      }
+      const noseType = shapeOptions[Math.floor(Math.random() * shapeOptions.length)];
+      const noseX = width * randomPos(baseNosePos.x, 0.03);
+      const noseY = height * randomPos(baseNosePos.y, 0.03);
+      const noseSize = randomBetween(width * 0.03, width * 0.15);
+      const noseColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.fillStyle = noseColor;
+      switch (noseType) {
+        case "circle":
+          ctx.beginPath();
+          ctx.arc(noseX, noseY, noseSize / 2, 0, 2 * Math.PI);
+          ctx.fill();
+          break;
+        case "rect":
+          ctx.fillRect(noseX - noseSize / 2, noseY - noseSize / 2, noseSize, noseSize);
+          break;
+        case "triangle":
+          const hn = noseSize * Math.sqrt(3) / 2;
+          ctx.beginPath();
+          ctx.moveTo(noseX, noseY - hn / 2);
+          ctx.lineTo(noseX - noseSize / 2, noseY + hn / 2);
+          ctx.lineTo(noseX + noseSize / 2, noseY + hn / 2);
+          ctx.closePath();
+          ctx.fill();
+          break;
+      }
+      const mouthType = mouthOptions[Math.floor(Math.random() * mouthOptions.length)];
+      const mouthX = width * randomPos(baseMouthPos.x, 0.05);
+      const mouthY = height * randomPos(baseMouthPos.y, 0.05);
+      const mouthSize = randomBetween(width * 0.08, width * 0.55);
+      const mouthColor = canvas.palette[Math.floor(Math.random() * canvas.palette.length)];
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = mouthColor;
+      ctx.fillStyle = mouthColor;
+      switch (mouthType) {
+        case "arc":
+          ctx.beginPath();
+          ctx.arc(mouthX, mouthY, mouthSize / 2, 0, Math.PI, false);
+          ctx.stroke();
+          break;
+        case "rect":
+          ctx.fillRect(mouthX - mouthSize / 2, mouthY - mouthSize / 4, mouthSize, mouthSize / 2);
+          break;
+        case "line":
+          ctx.beginPath();
+          ctx.moveTo(mouthX - mouthSize / 2, mouthY);
+          ctx.lineTo(mouthX + mouthSize / 2, mouthY);
+          ctx.stroke();
+          break;
+      }
+    }
+
+    // Global variable to limit face updates.
+    let lastFaceUpdate = 0;
+    const FACE_UPDATE_THRESHOLD = 35; // Update faces only if scrollY increases by 100px.
+
+    // Create and append a new art square.
+    function addArtSquare() {
+      const container = document.getElementById("art-container");
+      const artSquare = document.createElement("div");
+      artSquare.className = "art-square";
+      container.appendChild(artSquare);
+      const r = Math.random();
+      if (r < 0.10) {
+        // Inception-based: subdivide into a 2×2 grid.
+        const subGrid = document.createElement("div");
+        subGrid.style.display = "grid";
+        subGrid.style.gridTemplateColumns = "1fr 1fr";
+        subGrid.style.gridTemplateRows = "1fr 1fr";
+        subGrid.style.width = "100%";
+        subGrid.style.height = "100%";
+        subGrid.style.gap = "10px";
+        artSquare.appendChild(subGrid);
+        for (let i = 0; i < 4; i++) {
+          const subCanvas = document.createElement("canvas");
+          subCanvas.className = "sub-canvas";
+          subGrid.appendChild(subCanvas);
+          const minScale = 0.5, maxScale = 1.5;
+          const scaleFactor = randomBetween(minScale, maxScale);
+          subCanvas.scaleFactor = scaleFactor;
+          const chosenPalette = midcenturyPalettes[Math.floor(Math.random() * midcenturyPalettes.length)];
+          subCanvas.palette = chosenPalette;
+          subCanvas.bgColor = chosenPalette[Math.floor(Math.random() * chosenPalette.length)];
+          subCanvas.shapes = generateShapes(scaleFactor, chosenPalette);
+          drawArt(subCanvas);
+          canvases.push(subCanvas);
+        }
+      } else if (r < 0.20) {
+        // Strip-based: replace square with rectangle strips.
+        const orientation = Math.random() < 0.5 ? "vertical" : "horizontal";
+        const numStrips = Math.floor(randomBetween(2, 6));
+        const subGrid = document.createElement("div");
+        subGrid.style.display = "grid";
+        if (orientation === "vertical") {
+          subGrid.style.gridTemplateColumns = `repeat(${numStrips}, 1fr)`;
+          subGrid.style.gridTemplateRows = "1fr";
+        } else {
+          subGrid.style.gridTemplateRows = `repeat(${numStrips}, 1fr)`;
+          subGrid.style.gridTemplateColumns = "1fr";
+        }
+        subGrid.style.width = "100%";
+        subGrid.style.height = "100%";
+        subGrid.style.gap = "10px";
+        artSquare.appendChild(subGrid);
+        for (let i = 0; i < numStrips; i++) {
+          const stripCanvas = document.createElement("canvas");
+          stripCanvas.className = "sub-canvas";
+          subGrid.appendChild(stripCanvas);
+          const minScale = 0.5, maxScale = 1.5;
+          const scaleFactor = randomBetween(minScale, maxScale);
+          stripCanvas.scaleFactor = scaleFactor;
+          const chosenPalette = midcenturyPalettes[Math.floor(Math.random() * midcenturyPalettes.length)];
+          stripCanvas.palette = chosenPalette;
+          stripCanvas.bgColor = chosenPalette[Math.floor(Math.random() * chosenPalette.length)];
+          stripCanvas.shapes = generateShapes(scaleFactor, chosenPalette);
+          stripCanvas.isStrip = true;
+          stripCanvas.orientation = orientation;
+          stripCanvas.stripSpeed = randomBetween(0.05, 0.2);
+          drawArt(stripCanvas);
+          canvases.push(stripCanvas);
+        }
+      } else if (r < 0.30) {
+        // Face-based: draw a face on the square.
+        const canvas = document.createElement("canvas");
+        artSquare.appendChild(canvas);
+        canvas.isFace = true;
+        const minScale = 0.5, maxScale = 1.5;
+        const scaleFactor = randomBetween(minScale, maxScale);
+        canvas.scaleFactor = scaleFactor;
+        const chosenPalette = midcenturyPalettes[Math.floor(Math.random() * midcenturyPalettes.length)];
+        canvas.palette = chosenPalette;
+        canvas.bgColor = chosenPalette[Math.floor(Math.random() * chosenPalette.length)];
+        drawFace(canvas);
+        canvases.push(canvas);
+      } else if (r < 0.40) {
+        // Blank square: canvas with background only.
+        const canvas = document.createElement("canvas");
+        artSquare.appendChild(canvas);
+        const minScale = 0.5, maxScale = 1.5;
+        canvas.scaleFactor = randomBetween(minScale, maxScale);
+        const chosenPalette = midcenturyPalettes[Math.floor(Math.random() * midcenturyPalettes.length)];
+        canvas.palette = chosenPalette;
+        canvas.bgColor = chosenPalette[Math.floor(Math.random() * chosenPalette.length)];
+        // No shapes assigned.
+        drawArt(canvas);
+        canvases.push(canvas);
+      } else {
+        // Normal art square.
+        const canvas = document.createElement("canvas");
+        artSquare.appendChild(canvas);
+        const minScale = 0.5, maxScale = 1.5;
+        canvas.scaleFactor = randomBetween(minScale, maxScale);
+        const chosenPalette = midcenturyPalettes[Math.floor(Math.random() * midcenturyPalettes.length)];
+        canvas.palette = chosenPalette;
+        canvas.bgColor = chosenPalette[Math.floor(Math.random() * chosenPalette.length)];
+        canvas.shapes = generateShapes(canvas.scaleFactor, chosenPalette);
+        drawArt(canvas);
+        canvases.push(canvas);
+      }
+    }
+
+    // Redraw all canvases on scroll/time.
+    function updateAllArt() {
+      canvases.forEach(canvas => {
+        if (canvas.isFace) {
+          if (window.scrollY - lastFaceUpdate > FACE_UPDATE_THRESHOLD) {
+            drawFace(canvas);
+          }
+        } else {
+          drawArt(canvas);
+        }
+      });
+      if (window.scrollY - lastFaceUpdate > FACE_UPDATE_THRESHOLD) {
+        lastFaceUpdate = window.scrollY;
+      }
+      isTicking = false;
+    }
+
+    let isTicking = false;
+    for (let i = 0; i < 20; i++) {
+      addArtSquare();
+    }
+    window.addEventListener("scroll", () => {
+      if (!isTicking) {
+        window.requestAnimationFrame(updateAllArt);
+        isTicking = true;
+      }
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+        for (let i = 0; i < 10; i++) {
+          addArtSquare();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
