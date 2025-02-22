@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive Circle Grid (Modes + Attraction Checkbox)</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background: #f5f5f5;
+      }
+      canvas {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      /* Container for the toggle button and the controls panel */
+      #controlsBar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+      /* The top row with just the toggle button */
+      #controlsHeader {
+        display: flex;
+        justify-content: flex-start;
+        padding: 8px;
+      }
+      #toggleControls {
+        font-size: 14px;
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      /* The actual controls panel that can be hidden/shown */
+      #controlsPanel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        padding: 6px 10px 10px;
+      }
+      #controlsPanel label {
+        font-family: sans-serif;
+        font-size: 14px;
+        margin-right: 4px;
+      }
+      #controlsPanel input[type="range"],
+      #controlsPanel select {
+        vertical-align: middle;
+      }
+      #controlsPanel span {
+        display: inline-block;
+        width: 36px;
+        text-align: center;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Controls Bar (button + panel) -->
+    <div id="controlsBar">
+      <div id="controlsHeader">
+        <button id="toggleControls">Hide Controls</button>
+      </div>
+      <div id="controlsPanel">
+        <!-- Single slider for grid size -->
+        <label for="gridSizeRange">Grid Size</label>
+        <input type="range" id="gridSizeRange" min="1" max="100" value="25"/>
+        <span id="gridSizeValue">25</span>
+
+        <!-- Circle size slider -->
+        <label for="circleSizeRange">Circle Size</label>
+        <input type="range" id="circleSizeRange" min="1" max="50" value="8"/>
+        <span id="circleSizeValue">8</span>
+
+        <!-- Sensitivity slider -->
+        <label for="sensitivityRange">Sensitivity</label>
+        <input type="range" id="sensitivityRange" min="0" max="2" step="0.02" value="0.3"/>
+        <span id="sensitivityValue">0.3</span>
+
+        <!-- Influence radius slider -->
+        <label for="radiusOfInfluenceRange">Influence Radius</label>
+        <input type="range" id="radiusOfInfluenceRange" min="0" max="1000" step="10" value="120"/>
+        <span id="radiusOfInfluenceValue">120</span>
+
+        <!-- Movement mode -->
+        <label for="movementModeSelect">Mode</label>
+        <select id="movementModeSelect">
+          <option value="velocity">Velocity</option>
+          <option value="noise">Noise</option>
+          <option value="softBody">Soft Body (Experimental)</option>
+          <option value="cube3d">Cube3D</option>
+        </select>
+
+        <!-- Sliders for rotation speed along X, Y, Z -->
+        <label for="rotateXSpeedRange">RotX Speed</label>
+        <input type="range" id="rotateXSpeedRange" min="0" max="0.02" step="0.001" value="0.005"/>
+        <span id="rotateXSpeedValue">0.005</span>
+
+        <label for="rotateYSpeedRange">RotY Speed</label>
+        <input type="range" id="rotateYSpeedRange" min="0" max="0.02" step="0.001" value="0.002"/>
+        <span id="rotateYSpeedValue">0.002</span>
+
+        <label for="rotateZSpeedRange">RotZ Speed</label>
+        <input type="range" id="rotateZSpeedRange" min="0" max="0.02" step="0.001" value="0.007"/>
+        <span id="rotateZSpeedValue">0.007</span>
+
+        <!-- Checkbox for Attraction -->
+        <label for="attractCheckbox">Repel?</label>
+        <input type="checkbox" id="attractCheckbox"/>
+      </div>
+    </div>
+
+    <canvas id="circleCanvas"></canvas>
+
+    <script>
+      // If the code's behavior is unclear, please let us know what you expect.
+      // We'll add test cases below.
+
+      const canvas = document.getElementById('circleCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Window size
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Grid variables
+      let gridSize = 25;
+
+      // Circle settings
+      let circleRadius = 8;
+      let maxDist = 120;
+      let sensitivity = 0.3;
+
+      // Movement mode
+      let movementMode = 'velocity';
+
+      // For attraction toggle
+      let isAttract = false;
+      const attractCheckbox = document.getElementById('attractCheckbox');
+      attractCheckbox.addEventListener('change', () => {
+        isAttract = attractCheckbox.checked;
+      });
+
+      // Data store (2D or 3D)
+      const circles = [];
+
+      // Mouse positions
+      const mouse = { x: -1, y: -1 };
+      const lastMouse = { x: -1, y: -1 };
+
+      // Toggle controls
+      const toggleControlsBtn = document.getElementById('toggleControls');
+      const controlsPanel = document.getElementById('controlsPanel');
+
+      const gridSizeRange = document.getElementById('gridSizeRange');
+      const gridSizeValue = document.getElementById('gridSizeValue');
+      const circleSizeRange = document.getElementById('circleSizeRange');
+      const circleSizeValue = document.getElementById('circleSizeValue');
+      const sensitivityRange = document.getElementById('sensitivityRange');
+      const sensitivityValue = document.getElementById('sensitivityValue');
+      const radiusOfInfluenceRange = document.getElementById('radiusOfInfluenceRange');
+      const radiusOfInfluenceValue = document.getElementById('radiusOfInfluenceValue');
+      const movementModeSelect = document.getElementById('movementModeSelect');
+
+      // Rotation speed sliders
+      const rotateXSpeedRange = document.getElementById('rotateXSpeedRange');
+      const rotateXSpeedValue = document.getElementById('rotateXSpeedValue');
+      const rotateYSpeedRange = document.getElementById('rotateYSpeedRange');
+      const rotateYSpeedValue = document.getElementById('rotateYSpeedValue');
+      const rotateZSpeedRange = document.getElementById('rotateZSpeedRange');
+      const rotateZSpeedValue = document.getElementById('rotateZSpeedValue');
+
+      let controlsVisible = true;
+      toggleControlsBtn.addEventListener('click', () => {
+        controlsVisible = !controlsVisible;
+        if (controlsVisible) {
+          controlsPanel.style.display = 'flex';
+          toggleControlsBtn.textContent = 'Hide Controls';
+        } else {
+          controlsPanel.style.display = 'none';
+          toggleControlsBtn.textContent = 'Show Controls';
+        }
+      });
+
+      // Hook up slider events
+      gridSizeRange.addEventListener('input', () => {
+        gridSize = parseInt(gridSizeRange.value);
+        gridSizeValue.textContent = gridSize;
+        if (movementMode === 'cube3d') {
+          initCube3D();
+        } else {
+          recalcGrid();
+        }
+      });
+
+      circleSizeRange.addEventListener('input', () => {
+        circleRadius = parseInt(circleSizeRange.value);
+        circleSizeValue.textContent = circleRadius;
+      });
+
+      sensitivityRange.addEventListener('input', () => {
+        sensitivity = parseFloat(sensitivityRange.value);
+        sensitivityValue.textContent = sensitivity;
+      });
+
+      radiusOfInfluenceRange.addEventListener('input', () => {
+        maxDist = parseInt(radiusOfInfluenceRange.value);
+        radiusOfInfluenceValue.textContent = maxDist;
+      });
+
+      movementModeSelect.addEventListener('change', () => {
+        movementMode = movementModeSelect.value;
+        if (movementMode === 'cube3d') {
+          initCube3D();
+        } else {
+          recalcGrid();
+        }
+      });
+
+      let rotateXSpeed = 0.005;
+      let rotateYSpeed = 0.002;
+      let rotateZSpeed = 0.007;
+
+      rotateXSpeedRange.addEventListener('input', () => {
+        rotateXSpeed = parseFloat(rotateXSpeedRange.value);
+        rotateXSpeedValue.textContent = rotateXSpeed.toFixed(3);
+      });
+      rotateYSpeedRange.addEventListener('input', () => {
+        rotateYSpeed = parseFloat(rotateYSpeedRange.value);
+        rotateYSpeedValue.textContent = rotateYSpeed.toFixed(3);
+      });
+      rotateZSpeedRange.addEventListener('input', () => {
+        rotateZSpeed = parseFloat(rotateZSpeedRange.value);
+        rotateZSpeedValue.textContent = rotateZSpeed.toFixed(3);
+      });
+
+      // 2D Grid of circles, centered
+      function createGrid() {
+        circles.length = 0;
+        const smallerDim = Math.min(width, height);
+        const cellSize = smallerDim / (gridSize + 1);
+        const totalGridSize = cellSize * (gridSize - 1);
+        const offsetX = (width - totalGridSize) / 2;
+        const offsetY = (height - totalGridSize) / 2;
+
+        for (let r = 0; r < gridSize; r++) {
+          for (let c = 0; c < gridSize; c++) {
+            const x = offsetX + c * cellSize;
+            const y = offsetY + r * cellSize;
+            circles.push({
+              row: r,
+              col: c,
+              originalX: x,
+              originalY: y,
+              x,
+              y,
+            });
+          }
+        }
+      }
+
+      function recalcGrid() {
+        createGrid();
+      }
+
+      createGrid();
+
+      // Mouse event
+      window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      window.addEventListener('resize', () => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        if (movementMode === 'cube3d') {
+          initCube3D();
+        } else {
+          recalcGrid();
+        }
+      });
+
+      // Soft Body Springs
+      function applySoftBodySprings() {
+        const springStrength = 0.01;
+        for (let i = 0; i < circles.length; i++) {
+          const circleA = circles[i];
+          if (circleA.col < gridSize - 1) {
+            const circleB = circles[i + 1]; // right neighbor
+            applySpring(circleA, circleB, springStrength);
+          }
+          if (circleA.row < gridSize - 1) {
+            const circleC = circles[i + gridSize]; // down neighbor
+            applySpring(circleA, circleC, springStrength);
+          }
+        }
+      }
+
+      function applySpring(circleA, circleB, k) {
+        const dx = circleB.x - circleA.x;
+        const dy = circleB.y - circleA.y;
+        const currentDist = Math.sqrt(dx*dx + dy*dy);
+        const ox = circleB.originalX - circleA.originalX;
+        const oy = circleB.originalY - circleA.originalY;
+        const restDist = Math.sqrt(ox*ox + oy*oy);
+        if (currentDist === 0) return;
+
+        const diff = currentDist - restDist;
+        const force = (diff / currentDist) * k;
+        const fx = dx * force * 0.5;
+        const fy = dy * force * 0.5;
+
+        circleA.x += fx;
+        circleA.y += fy;
+        circleB.x -= fx;
+        circleB.y -= fy;
+      }
+
+      // 3D state
+      let rotateX = 0;
+      let rotateY = 0;
+      let rotateZ = 0;
+
+      function initCube3D() {
+        circles.length = 0;
+        const actualGrid = Math.min(gridSize, 20);
+        const smallerDim = Math.min(width, height);
+        const cubeSize = smallerDim * 0.6;
+        const step = (actualGrid > 1) ? (cubeSize / (actualGrid - 1)) : cubeSize;
+        const half = cubeSize / 2;
+
+        for (let z = 0; z < actualGrid; z++) {
+          for (let y = 0; y < actualGrid; y++) {
+            for (let x = 0; x < actualGrid; x++) {
+              const wx = x * step - half;
+              const wy = y * step - half;
+              const wz = z * step - half;
+              circles.push({
+                worldX: wx,
+                worldY: wy,
+                worldZ: wz,
+                origX: wx,
+                origY: wy,
+                origZ: wz,
+                projX: 0,
+                projY: 0,
+                // We'll store rotated coords so we can do spherical distance
+                rx: wx,
+                ry: wy,
+                rz: wz,
+              });
+            }
+          }
+        }
+      }
+
+      // Rotate in orthographic space, store rotated coords in rx,ry,rz
+      function rotateCircle3D(circle) {
+        let x = circle.worldX;
+        let y = circle.worldY;
+        let z = circle.worldZ;
+
+        // precompute sines and cosines
+        const cx = Math.cos(rotateX);
+        const sx = Math.sin(rotateX);
+        const cy = Math.cos(rotateY);
+        const sy = Math.sin(rotateY);
+        const cz = Math.cos(rotateZ);
+        const sz = Math.sin(rotateZ);
+
+        // rotate around X
+        let tmpY = y * cx - z * sx;
+        let tmpZ = y * sx + z * cx;
+        y = tmpY;
+        z = tmpZ;
+
+        // rotate around Y
+        let tmpX = x * cy - z * sy;
+        tmpZ = x * sy + z * cy;
+        x = tmpX;
+        z = tmpZ;
+
+        // rotate around Z
+        tmpX = x * cz - y * sz;
+        tmpY = x * sz + y * cz;
+        x = tmpX;
+        y = tmpY;
+
+        // store rotated coords
+        circle.rx = x;
+        circle.ry = y;
+        circle.rz = z;
+
+        // Orthographic projection
+        circle.projX = x + width / 2;
+        circle.projY = y + height / 2;
+      }
+
+      // We'll define a 3D spherical radius approach:
+      // The user is at z=0 plane in the rotated space (rx,ry,0).
+      // We'll treat the circle's rotated coords (rx,ry,rz)
+      // and measure 3D distance. The circles that have smaller z (closer to camera at z=0) get stronger influence.
+
+      function influenceSpherical3D(circle, velocity) {
+        // define mouse in 3D (mouse.x - width/2, mouse.y - height/2, 0)
+        const mx = mouse.x - width / 2;
+        const my = mouse.y - height / 2;
+        const mz = 0; // camera plane
+
+        const dx = circle.rx - mx;
+        const dy = circle.ry - my;
+        const dz = circle.rz - mz;
+
+        const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist3D < maxDist && mouse.x >= 0 && mouse.y >= 0) {
+          const influence = 1 - dist3D / maxDist;
+          const offsetStrength = velocity * influence * sensitivity;
+          if (velocity > 0) {
+            // direction vector from mouse to circle
+            // if isAttract, we want circle to move TOWARDS mouse
+            // if repel, we want circle to move AWAY from mouse
+            const ndx = dx / dist3D;
+            const ndy = dy / dist3D;
+            const ndz = dz / dist3D;
+
+            // for attraction, invert sign
+            const sign = isAttract ? -1 : 1;
+
+            circle.worldX += sign * ndx * offsetStrength;
+            circle.worldY += sign * ndy * offsetStrength;
+            circle.worldZ += sign * ndz * offsetStrength;
+          }
+        }
+      }
+
+      // 2D influence (push or pull)
+      function influence2D(circle, vx, vy, velocity) {
+        const dx = mouse.x - circle.x;
+        const dy = mouse.y - circle.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < maxDist && mouse.x >= 0 && mouse.y >= 0) {
+          const influence = 1 - dist / maxDist;
+          const offsetStrength = velocity * influence * sensitivity;
+          if (velocity > 0) {
+            const ndx = dx / dist;
+            const ndy = dy / dist;
+
+            // sign flips for attract vs repel
+            const sign = isAttract ? -1 : 1;
+
+            if (movementMode === 'velocity' || movementMode === 'softBody') {
+              // normal velocity-based push/pull
+              circle.x += sign * ndx * offsetStrength;
+              circle.y += sign * ndy * offsetStrength;
+            } else if (movementMode === 'noise') {
+              // noise movement. If attract, just invert sign again.
+              circle.x += sign * (Math.random() * 2 - 1) * offsetStrength;
+              circle.y += sign * (Math.random() * 2 - 1) * offsetStrength;
+            }
+          }
+        }
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        let vx = 0;
+        let vy = 0;
+        if (lastMouse.x >= 0 && lastMouse.y >= 0) {
+          vx = mouse.x - lastMouse.x;
+          vy = mouse.y - lastMouse.y;
+        }
+        lastMouse.x = mouse.x;
+        lastMouse.y = mouse.y;
+        const velocity = Math.sqrt(vx * vx + vy * vy);
+
+        // Update rotations from sliders
+        rotateX += rotateXSpeed;
+        rotateY += rotateYSpeed;
+        rotateZ += rotateZSpeed;
+
+        if (movementMode !== 'cube3d') {
+          // 2D modes
+          for (let i = 0; i < circles.length; i++) {
+            influence2D(circles[i], vx, vy, velocity);
+          }
+
+          // softBody
+          if (movementMode === 'softBody') {
+            applySoftBodySprings();
+          }
+
+          // friction back
+          for (let i = 0; i < circles.length; i++) {
+            const circle = circles[i];
+            const ox = circle.x - circle.originalX;
+            const oy = circle.y - circle.originalY;
+            const friction = 0.9;
+            circle.x = circle.originalX + ox * friction;
+            circle.y = circle.originalY + oy * friction;
+          }
+        } else {
+          // 3D mode
+
+          // rotate once so we know rx,ry,rz
+          for (let i = 0; i < circles.length; i++) {
+            rotateCircle3D(circles[i]);
+          }
+
+          // push or pull in spherical sense
+          for (let i = 0; i < circles.length; i++) {
+            influenceSpherical3D(circles[i], velocity);
+          }
+
+          // friction back to original
+          for (let i = 0; i < circles.length; i++) {
+            const circle = circles[i];
+            const ox = circle.worldX - circle.origX;
+            const oy = circle.worldY - circle.origY;
+            const oz = circle.worldZ - circle.origZ;
+            const friction = 0.9;
+            circle.worldX = circle.origX + ox * friction;
+            circle.worldY = circle.origY + oy * friction;
+            circle.worldZ = circle.origZ + oz * friction;
+          }
+
+          // rotate again for final positions
+          for (let i = 0; i < circles.length; i++) {
+            rotateCircle3D(circles[i]);
+          }
+        }
+
+        // draw
+        for (let i = 0; i < circles.length; i++) {
+          const circle = circles[i];
+          if (movementMode === 'cube3d') {
+            ctx.beginPath();
+            ctx.arc(circle.projX, circle.projY, circleRadius, 0, Math.PI * 2, false);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+          } else {
+            ctx.beginPath();
+            ctx.arc(circle.x, circle.y, circleRadius, 0, Math.PI * 2, false);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+
+      // Test cases:
+      // 1) gridSize=1 + cube3d => 1 circle in center, rotating (push or pull if near mouse)
+      // 2) gridSize=25 + softBody => 2D jiggly grid
+      // 3) gridSize=10 + noise => random wiggles
+      // Check the new 'Attract?' checkbox for attraction instead of repulsion.
+    </script>
+  </body>
+</html>
