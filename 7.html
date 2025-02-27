@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-Chain Springy Canvas - Rendering Options</title>
+  <style>
+    body { margin: 0; padding: 0; text-align: center; }
+    #controls { margin: 20px; }
+    button, select { padding: 10px 20px; font-size: 16px; margin: 0 10px; }
+    canvas { border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button id="newChainButton">New Chain</button>
+    <button id="stopGrowthButton">Stop Growth</button>
+    <select id="renderTypeSelect">
+      <option value="bezier">Bezier Curves</option>
+      <option value="dots">Dots</option>
+    </select>
+  </div>
+  <canvas id="canvas" width="600" height="600"></canvas>
+
+  <script>
+    // Simulation parameters.
+    const restLength = 10;         // desired distance between consecutive dots
+    const dotRadius = 5;           // used for hit detection and dot rendering
+    const springK = 0.05;          // spring stiffness constant
+    const damping = 0.95;          // velocity damping factor
+    const repulsionDistance = 15;  // repulsion distance within a chain
+    const repulsionK = 0.5;        // repulsion strength within a chain
+    const growthInterval = 5;      // add a new dot every 5 frames for the growing chain
+    const lineRepulsionK = 0.2;    // repulsion for intersecting segments
+
+    // Constants for repulsion between different chains.
+    const chainRepulsionDistance = 20;
+    const chainRepulsionK = 0.3;
+
+    // Precomputed squared distances.
+    const repulsionDistanceSq = repulsionDistance * repulsionDistance;
+    const chainRepulsionDistanceSq = chainRepulsionDistance * chainRepulsionDistance;
+
+    // Rendering type; defaults to "bezier".
+    let renderType = "bezier";
+
+    // Array to store all chains.
+    // Each chain: { color: string, dots: [{ x, y, vx, vy, fx, fy }], growing: boolean }
+    let chains = [];
+    let currentChain = null;
+    let frameCount = 0;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Create a new linear chain.
+    function spawnNewChain() {
+      if (currentChain) {
+        currentChain.growing = false;
+      }
+      const color = `hsl(${Math.floor(Math.random() * 360)}, 80%, 50%)`;
+      const margin = dotRadius * 2;
+      const x = margin + Math.random() * (canvas.width - margin * 2);
+      const y = margin + Math.random() * (canvas.height - margin * 2);
+      const newChain = {
+        color: color,
+        dots: [{ x, y, vx: 0, vy: 0, fx: 0, fy: 0 }],
+        growing: true
+      };
+      chains.push(newChain);
+      currentChain = newChain;
+    }
+
+    // Stop the growth of all chains.
+    function stopGrowth() {
+      chains.forEach(chain => chain.growing = false);
+      currentChain = null;
+    }
+
+    // Add a new dot at the end of the chain.
+    function addNewDot(chain) {
+      const last = chain.dots[chain.dots.length - 1];
+      const angle = Math.random() * Math.PI * 2;
+      chain.dots.push({
+        x: last.x + restLength * Math.cos(angle),
+        y: last.y + restLength * Math.sin(angle),
+        vx: 0, vy: 0, fx: 0, fy: 0
+      });
+    }
+
+    // Reset forces for each dot in the chain.
+    function resetForces(chain) {
+      const dots = chain.dots;
+      for (let i = 0; i < dots.length; i++) {
+        dots[i].fx = 0;
+        dots[i].fy = 0;
+      }
+    }
+
+    // Apply spring forces and intra-chain repulsion.
+    function applyChainForces(chain) {
+      const dots = chain.dots;
+      // Spring forces between adjacent dots.
+      for (let i = 0; i < dots.length - 1; i++) {
+        const a = dots[i], b = dots[i + 1];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+        const force = springK * (dist - restLength);
+        const fx = force * dx / dist;
+        const fy = force * dy / dist;
+        a.fx += fx;
+        a.fy += fy;
+        b.fx -= fx;
+        b.fy -= fy;
+      }
+      // Repulsion between non-adjacent dots.
+      for (let i = 0; i < dots.length; i++) {
+        for (let j = i + 2; j < dots.length; j++) {
+          const a = dots[i], b = dots[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          if (Math.abs(dx) > repulsionDistance || Math.abs(dy) > repulsionDistance) continue;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < repulsionDistanceSq) {
+            const dist = Math.sqrt(distSq) || 0.001;
+            const repForce = repulsionK * (repulsionDistance - dist);
+            const fx = repForce * dx / dist;
+            const fy = repForce * dy / dist;
+            a.fx -= fx;
+            a.fy -= fy;
+            b.fx += fx;
+            b.fy += fy;
+          }
+        }
+      }
+    }
+
+    // Check if two line segments intersect.
+    function segmentIntersection(p1, p2, p3, p4) {
+      const denom = (p1.x - p2.x) * (p3.y - p4.y) -
+                    (p1.y - p2.y) * (p3.x - p4.x);
+      if (denom === 0) return null;
+      const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / denom;
+      const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / denom;
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+      }
+      return null;
+    }
+
+    // Apply repulsive forces for intersecting segments.
+    function applyGlobalLineCollisionForces() {
+      const segments = [];
+      chains.forEach(chain => {
+        const dots = chain.dots;
+        for (let i = 0; i < dots.length - 1; i++) {
+          segments.push({ p1: dots[i], p2: dots[i + 1], chain: chain, index: i });
+        }
+      });
+      const len = segments.length;
+      for (let i = 0; i < len; i++) {
+        const segA = segments[i];
+        const minAx = Math.min(segA.p1.x, segA.p2.x),
+              maxAx = Math.max(segA.p1.x, segA.p2.x),
+              minAy = Math.min(segA.p1.y, segA.p2.y),
+              maxAy = Math.max(segA.p1.y, segA.p2.y);
+        for (let j = i + 1; j < len; j++) {
+          const segB = segments[j];
+          if (segA.chain === segB.chain && Math.abs(segA.index - segB.index) <= 1) continue;
+          const minBx = Math.min(segB.p1.x, segB.p2.x),
+                maxBx = Math.max(segB.p1.x, segB.p2.x),
+                minBy = Math.min(segB.p1.y, segB.p2.y),
+                maxBy = Math.max(segB.p1.y, segB.p2.y);
+          if (maxAx < minBx || maxBx < minAx || maxAy < minBy || maxBy < minAy) continue;
+          const inter = segmentIntersection(segA.p1, segA.p2, segB.p1, segB.p2);
+          if (inter) {
+            [segA.p1, segA.p2, segB.p1, segB.p2].forEach(dot => {
+              let dx = dot.x - inter.x, dy = dot.y - inter.y;
+              let dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+              dot.fx += (dx / dist) * lineRepulsionK;
+              dot.fy += (dy / dist) * lineRepulsionK;
+            });
+          }
+        }
+      }
+    }
+
+    // Apply repulsive forces between dots of different chains.
+    function applyInterChainRepulsion() {
+      for (let i = 0; i < chains.length; i++) {
+        const chainA = chains[i];
+        for (let j = i + 1; j < chains.length; j++) {
+          const chainB = chains[j];
+          chainA.dots.forEach(dotA => {
+            chainB.dots.forEach(dotB => {
+              const dx = dotB.x - dotA.x, dy = dotB.y - dotA.y;
+              if (Math.abs(dx) > chainRepulsionDistance || Math.abs(dy) > chainRepulsionDistance) return;
+              const distSq = dx * dx + dy * dy;
+              if (distSq < chainRepulsionDistanceSq) {
+                const dist = Math.sqrt(distSq) || 0.001;
+                const repForce = chainRepulsionK * (chainRepulsionDistance - dist);
+                const fx = repForce * dx / dist;
+                const fy = repForce * dy / dist;
+                dotA.fx -= fx;
+                dotA.fy -= fy;
+                dotB.fx += fx;
+                dotB.fy += fy;
+              }
+            });
+          });
+        }
+      }
+    }
+
+    // Update physics: reset forces, apply interactions, and update positions.
+    function updatePhysics() {
+      chains.forEach(chain => {
+        resetForces(chain);
+        applyChainForces(chain);
+      });
+      applyGlobalLineCollisionForces();
+      applyInterChainRepulsion();
+
+      chains.forEach(chain => {
+        chain.dots.forEach(dot => {
+          dot.vx = (dot.vx + dot.fx) * damping;
+          dot.vy = (dot.vy + dot.fy) * damping;
+          dot.x += dot.vx;
+          dot.y += dot.vy;
+          // Bounce off canvas edges.
+          if (dot.x < dotRadius) { dot.x = dotRadius; dot.vx = -dot.vx; }
+          else if (dot.x > canvas.width - dotRadius) { dot.x = canvas.width - dotRadius; dot.vx = -dot.vx; }
+          if (dot.y < dotRadius) { dot.y = dotRadius; dot.vy = -dot.vy; }
+          else if (dot.y > canvas.height - dotRadius) { dot.y = canvas.height - dotRadius; dot.vy = -dot.vy; }
+        });
+      });
+    }
+
+    // Render the chains based on the selected rendering type.
+    function drawChains() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      chains.forEach(chain => {
+        if (renderType === "bezier") {
+          // Draw a smooth Bezier curve through the chain's dots.
+          ctx.strokeStyle = chain.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          const pts = chain.dots;
+          if (pts.length === 0) return;
+          if (pts.length === 1) {
+            ctx.moveTo(pts[0].x, pts[0].y);
+            ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
+          } else {
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 0; i < pts.length - 1; i++) {
+              const curr = pts[i];
+              const next = pts[i + 1];
+              const midX = (curr.x + next.x) / 2;
+              const midY = (curr.y + next.y) / 2;
+              ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+            }
+            ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+          }
+          ctx.stroke();
+        } else {
+          // Draw each dot as a circle.
+          ctx.fillStyle = chain.color;
+          ctx.beginPath();
+          chain.dots.forEach(dot => {
+            ctx.moveTo(dot.x + dotRadius, dot.y);
+            ctx.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2);
+          });
+          ctx.fill();
+        }
+      });
+    }
+
+    function animate() {
+      frameCount++;
+      if (currentChain && currentChain.growing && frameCount % growthInterval === 0) {
+        addNewDot(currentChain);
+      }
+      updatePhysics();
+      drawChains();
+      requestAnimationFrame(animate);
+    }
+
+    // Event listeners for controls.
+    document.getElementById('newChainButton').addEventListener('click', spawnNewChain);
+    document.getElementById('stopGrowthButton').addEventListener('click', stopGrowth);
+    document.getElementById('renderTypeSelect').addEventListener('change', (evt) => {
+      renderType = evt.target.value;
+    });
+
+    // Start the simulation.
+    spawnNewChain();
+    animate();
+  </script>
+</body>
+</html>
